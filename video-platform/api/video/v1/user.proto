@@ -4,6 +4,7 @@ package fanone.api.video.v1;
 
 option go_package = "video-platform/api/video/v1;v1";
 
+import "api.proto";
 import "api/video/v1/common.proto";
 
 // User 是用户数据结构
@@ -19,8 +20,8 @@ message User {
 // ---------- 用户模块请求/响应 ----------
 
 message RegisterRequest {
-  string username = 1;
-  string password = 2;
+  string username = 1 [(.api.body) = "username", (.api.vd) = "len($) > 0 && len($) < 50"];
+  string password = 2 [(.api.body) = "password", (.api.vd) = "len($) >= 6"];
 }
 
 message RegisterResponse {
@@ -28,8 +29,8 @@ message RegisterResponse {
 }
 
 message LoginRequest {
-  string username = 1;
-  string password = 2;
+  string username = 1 [(.api.body) = "username"];
+  string password = 2 [(.api.body) = "password"];
 }
 
 message LoginResponse {
@@ -40,7 +41,7 @@ message LoginResponse {
 }
 
 message GetUserInfoRequest {
-  string user_id = 1;
+  string user_id = 1 [(.api.query) = "user_id"];
 }
 
 message GetUserInfoResponse {
@@ -59,7 +60,7 @@ message UploadAvatarResponse {
 
 // RefreshTokenRequest: 使用 refresh_token 换取新的 access_token
 message RefreshTokenRequest {
-  string refresh_token = 1;
+  string refresh_token = 1 [(.api.body) = "refresh_token"];
 }
 
 message RefreshTokenResponse {
@@ -71,9 +72,19 @@ message RefreshTokenResponse {
 // ---------- Service 定义 ----------
 
 service UserService {
-  rpc Register(RegisterRequest) returns (RegisterResponse);
-  rpc Login(LoginRequest) returns (LoginResponse);
-  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse); // 刷新令牌
-  rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse);
-  rpc UploadAvatar(UploadAvatarRequest) returns (UploadAvatarResponse);
+  rpc Register(RegisterRequest) returns (RegisterResponse) {
+    option (.api.post) = "/api/v1/user/register";
+  }
+  rpc Login(LoginRequest) returns (LoginResponse) {
+    option (.api.post) = "/api/v1/user/login";
+  }
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse) {
+    option (.api.post) = "/api/v1/user/refresh";
+  }
+  rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse) {
+    option (.api.get) = "/api/v1/user/info";
+  }
+  rpc UploadAvatar(UploadAvatarRequest) returns (UploadAvatarResponse) {
+    option (.api.post) = "/api/v1/user/avatar";
+  }
 }

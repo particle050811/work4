@@ -4,6 +4,7 @@ package fanone.api.video.v1;
 
 option go_package = "video-platform/api/video/v1;v1";
 
+import "api.proto";
 import "api/video/v1/common.proto";
 
 // Video 为视频数据实体
@@ -33,8 +34,8 @@ message VideoListWithTotal {
 // PublishVideoRequest: 视频文件通过 multipart/form-data 上传
 // 实际 handler 中使用 c.FormFile("video") 获取文件
 message PublishVideoRequest {
-  string title = 1;
-  string description = 2; //视频简介，作者对视频内容的文字说明
+  string title = 1 [(.api.form) = "title"];
+  string description = 2 [(.api.form) = "description"]; //视频简介，作者对视频内容的文字说明
 }
 
 message PublishVideoResponse {
@@ -42,8 +43,9 @@ message PublishVideoResponse {
 }
 
 message ListPublishedVideosRequest {
-  string user_id = 1;
-  PageParams page = 2;
+  string user_id = 1 [(.api.query) = "user_id"];
+  int32 page_num = 2 [(.api.query) = "page_num"];
+  int32 page_size = 3 [(.api.query) = "page_size"];
 }
 
 message ListPublishedVideosResponse {
@@ -52,13 +54,13 @@ message ListPublishedVideosResponse {
 }
 
 message SearchVideosRequest {
-  string keywords = 1;
-  int32 page_size = 2;
-  int32 page_num = 3;
-  int64 from_date = 4;
-  int64 to_date = 5;
-  string username = 6;
-  string sort_by = 7;  // 排序方式: "hot"(按热度), "latest"(按时间最新), 默认 "latest"
+  string keywords = 1 [(.api.query) = "keywords"];
+  int32 page_size = 2 [(.api.query) = "page_size"];
+  int32 page_num = 3 [(.api.query) = "page_num"];
+  int64 from_date = 4 [(.api.query) = "from_date"];
+  int64 to_date = 5 [(.api.query) = "to_date"];
+  string username = 6 [(.api.query) = "username"];
+  string sort_by = 7 [(.api.query) = "sort_by"];  // 排序方式: "hot"(按热度), "latest"(按时间最新), 默认 "latest"
 }
 
 message SearchVideosResponse {
@@ -68,8 +70,9 @@ message SearchVideosResponse {
 
 // ListVideoCommentsRequest: 获取某视频下的评论列表
 message ListVideoCommentsRequest {
-  string video_id = 1;
-  PageParams page = 2;
+  string video_id = 1 [(.api.query) = "video_id"];
+  int32 page_num = 2 [(.api.query) = "page_num"];
+  int32 page_size = 3 [(.api.query) = "page_size"];
 }
 
 message ListVideoCommentsResponse {
@@ -94,12 +97,33 @@ message VideoComment {
   string created_at = 7;
 }
 
+// GetHotVideosRequest: 获取热门视频排行榜
+message GetHotVideosRequest {
+  int32 page_num = 1 [(.api.query) = "page_num"];
+  int32 page_size = 2 [(.api.query) = "page_size"];
+}
+
+message GetHotVideosResponse {
+  BaseResponse base = 1;
+  VideoListWithTotal data = 2;
+}
+
 // ---------- Service 定义 ----------
 
 service VideoService {
-  rpc PublishVideo(PublishVideoRequest) returns (PublishVideoResponse);
-  rpc ListPublishedVideos(ListPublishedVideosRequest)
-      returns (ListPublishedVideosResponse);
-  rpc SearchVideos(SearchVideosRequest) returns (SearchVideosResponse);
-  rpc ListVideoComments(ListVideoCommentsRequest) returns (ListVideoCommentsResponse);
+  rpc PublishVideo(PublishVideoRequest) returns (PublishVideoResponse) {
+    option (.api.post) = "/api/v1/video/publish";
+  }
+  rpc ListPublishedVideos(ListPublishedVideosRequest) returns (ListPublishedVideosResponse) {
+    option (.api.get) = "/api/v1/video/list";
+  }
+  rpc SearchVideos(SearchVideosRequest) returns (SearchVideosResponse) {
+    option (.api.get) = "/api/v1/video/search";
+  }
+  rpc ListVideoComments(ListVideoCommentsRequest) returns (ListVideoCommentsResponse) {
+    option (.api.get) = "/api/v1/video/comments";
+  }
+  rpc GetHotVideos(GetHotVideosRequest) returns (GetHotVideosResponse) {
+    option (.api.get) = "/api/v1/video/hot";
+  }
 }

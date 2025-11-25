@@ -4,6 +4,7 @@ package fanone.api.video.v1;
 
 option go_package = "video-platform/api/video/v1;v1";
 
+import "api.proto";
 import "api/video/v1/common.proto";
 import "api/video/v1/video.proto";
 
@@ -42,8 +43,8 @@ enum LikeActionType {
 // VideoLikeActionRequest: 对视频点赞/取消点赞
 // 未来扩展评论点赞时，新增 CommentLikeActionRequest 即可
 message VideoLikeActionRequest {
-  string video_id = 1;
-  LikeActionType action_type = 2;
+  string video_id = 1 [(.api.body) = "video_id"];
+  int32 action_type = 2 [(.api.body) = "action_type"]; // 1: 点赞, 2: 取消点赞
 }
 
 message VideoLikeActionResponse {
@@ -51,8 +52,9 @@ message VideoLikeActionResponse {
 }
 
 message ListLikedVideosRequest {
-  string user_id = 1;
-  PageParams page = 2;
+  string user_id = 1 [(.api.query) = "user_id"];
+  int32 page_num = 2 [(.api.query) = "page_num"];
+  int32 page_size = 3 [(.api.query) = "page_size"];
 }
 
 message ListLikedVideosResponse {
@@ -61,8 +63,8 @@ message ListLikedVideosResponse {
 }
 
 message PublishCommentRequest {
-  string video_id = 1;
-  string content = 2;
+  string video_id = 1 [(.api.body) = "video_id"];
+  string content = 2 [(.api.body) = "content"];
 }
 
 message PublishCommentResponse {
@@ -72,8 +74,9 @@ message PublishCommentResponse {
 // ListUserCommentsRequest: 获取某用户发表的所有评论
 // 查看视频的评论列表请用 video.proto 中的 ListVideoCommentsRequest
 message ListUserCommentsRequest {
-  string user_id = 1;
-  PageParams page = 2;
+  string user_id = 1 [(.api.query) = "user_id"];
+  int32 page_num = 2 [(.api.query) = "page_num"];
+  int32 page_size = 3 [(.api.query) = "page_size"];
 }
 
 message ListUserCommentsResponse {
@@ -85,7 +88,7 @@ message ListUserCommentsResponse {
 // 只需 comment_id，视频归属信息从数据库获取
 // 注意：需校验当前用户是否为评论作者
 message DeleteCommentRequest {
-  string comment_id = 1;
+  string comment_id = 1 [(.api.body) = "comment_id"];
 }
 
 message DeleteCommentResponse {
@@ -96,10 +99,20 @@ message DeleteCommentResponse {
 
 service InteractionService {
   // 视频点赞（未来扩展：CommentLikeAction）
-  rpc VideoLikeAction(VideoLikeActionRequest) returns (VideoLikeActionResponse);
-  rpc ListLikedVideos(ListLikedVideosRequest) returns (ListLikedVideosResponse);
+  rpc VideoLikeAction(VideoLikeActionRequest) returns (VideoLikeActionResponse) {
+    option (.api.post) = "/api/v1/interaction/like";
+  }
+  rpc ListLikedVideos(ListLikedVideosRequest) returns (ListLikedVideosResponse) {
+    option (.api.get) = "/api/v1/interaction/like/list";
+  }
   // 评论相关
-  rpc PublishComment(PublishCommentRequest) returns (PublishCommentResponse);
-  rpc ListUserComments(ListUserCommentsRequest) returns (ListUserCommentsResponse); // 用户的评论列表
-  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
+  rpc PublishComment(PublishCommentRequest) returns (PublishCommentResponse) {
+    option (.api.post) = "/api/v1/interaction/comment";
+  }
+  rpc ListUserComments(ListUserCommentsRequest) returns (ListUserCommentsResponse) {
+    option (.api.get) = "/api/v1/interaction/comment/list";
+  }
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse) {
+    option (.api.post) = "/api/v1/interaction/comment/delete";
+  }
 }

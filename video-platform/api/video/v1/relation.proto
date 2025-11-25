@@ -4,6 +4,7 @@ package fanone.api.video.v1;
 
 option go_package = "video-platform/api/video/v1;v1";
 
+import "api.proto";
 import "api/video/v1/common.proto";
 
 // SocialProfile 描述关注/粉丝/好友列表里的用户信息
@@ -29,8 +30,8 @@ enum RelationActionType {
 // ---------- 社交模块请求/响应 ----------
 
 message RelationActionRequest {
-  string to_user_id = 1;
-  RelationActionType action_type = 2;
+  string to_user_id = 1 [(.api.body) = "to_user_id"];
+  int32 action_type = 2 [(.api.body) = "action_type"]; // 1: 关注, 2: 取关
 }
 
 message RelationActionResponse {
@@ -41,8 +42,9 @@ message RelationActionResponse {
 // 例：user_id=A → 返回 A 关注的所有人
 //     A ──关注──▶ B, C, D  → 返回 [B, C, D]
 message ListFollowingsRequest {
-  string user_id = 1;
-  PageParams page = 2;
+  string user_id = 1 [(.api.query) = "user_id"];
+  int32 page_num = 2 [(.api.query) = "page_num"];
+  int32 page_size = 3 [(.api.query) = "page_size"];
 }
 
 message ListFollowingsResponse {
@@ -54,8 +56,9 @@ message ListFollowingsResponse {
 // 例：user_id=A → 返回关注 A 的所有人
 //     B, C, D ──关注──▶ A  → 返回 [B, C, D]
 message ListFollowersRequest {
-  string user_id = 1;
-  PageParams page = 2;
+  string user_id = 1 [(.api.query) = "user_id"];
+  int32 page_num = 2 [(.api.query) = "page_num"];
+  int32 page_size = 3 [(.api.query) = "page_size"];
 }
 
 message ListFollowersResponse {
@@ -67,7 +70,8 @@ message ListFollowersResponse {
 // 只能查自己的好友，user_id 从 JWT Token 中获取
 // 例：A ◀──关注──▶ B （互关）→ B 出现在 A 的好友列表中
 message ListFriendsRequest {
-  PageParams page = 1;
+  int32 page_num = 1 [(.api.query) = "page_num"];
+  int32 page_size = 2 [(.api.query) = "page_size"];
 }
 
 message ListFriendsResponse {
@@ -78,8 +82,16 @@ message ListFriendsResponse {
 // ---------- Service 定义 ----------
 
 service RelationService {
-  rpc RelationAction(RelationActionRequest) returns (RelationActionResponse);
-  rpc ListFollowings(ListFollowingsRequest) returns (ListFollowingsResponse);
-  rpc ListFollowers(ListFollowersRequest) returns (ListFollowersResponse);
-  rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse);
+  rpc RelationAction(RelationActionRequest) returns (RelationActionResponse) {
+    option (.api.post) = "/api/v1/relation/action";
+  }
+  rpc ListFollowings(ListFollowingsRequest) returns (ListFollowingsResponse) {
+    option (.api.get) = "/api/v1/relation/following/list";
+  }
+  rpc ListFollowers(ListFollowersRequest) returns (ListFollowersResponse) {
+    option (.api.get) = "/api/v1/relation/follower/list";
+  }
+  rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse) {
+    option (.api.get) = "/api/v1/relation/friend/list";
+  }
 }

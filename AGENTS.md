@@ -59,59 +59,100 @@
 - **对象存储**：本地文件系统起步，可预留 MinIO / OSS 扩展能力
 - **构建与部署**：Go Modules、Docker、（可选）docker-compose
 
-## 推荐目录结构（Hertz 示例）
+## 当前项目结构（Hertz + Protobuf）
 
 ```
 video-platform/
-├── cmd/server/main.go            # 入口
-├── router.go / router_gen.go     # 路由定义（生成 + 自定义）
-├── api/video/v1/video.proto      # Protobuf 接口定义（hz/kratos 生成依据）
+├── main.go                           # 服务入口
+├── router.go                         # 自定义路由（可扩展）
+├── router_gen.go                     # 生成的路由注册入口
+├── api.proto                         # Hertz HTTP 注解定义文件
+├── api/video/v1/                     # Protobuf 接口定义
+│   ├── common.proto                  # 公共消息（BaseResponse、PageParams）
+│   ├── user.proto                    # 用户模块（5 接口）
+│   ├── video.proto                   # 视频模块（5 接口）
+│   ├── interaction.proto             # 互动模块（5 接口）
+│   └── relation.proto                # 社交模块（4 接口）
 ├── biz/
-│   ├── handler/                  # HTTP 处理器
-│   ├── service/                  # 业务逻辑
-│   ├── dal/
-│   │   ├── db/                   # GORM 初始化 & DAO
-│   │   ├── redis/                # Redis 客户端、排行榜
-│   │   └── model/                # User, Video, Like, Comment, Relation 等
-│   └── repository/               # 数据访问封装
-├── pkg/
-│   ├── auth/                     # JWT、密码哈希、双 Token
-│   ├── middleware/               # 认证、日志、限流
-│   └── response/                 # 统一响应结构
-├── storage/videos/               # 投稿文件存储
-├── docs/
-│   ├── README.md                 # API 列表、项目结构图
-│   └── docker.md                 # 部署指南（可选）
-├── Dockerfile
-├── docker-compose.yaml           # 可选：MySQL + Redis + App
-└── Makefile / task.sh            # 脚本化命令
+│   ├── handler/v1/                   # HTTP 处理器（待实现业务逻辑）
+│   │   ├── user_service.go
+│   │   ├── video_service.go
+│   │   ├── interaction_service.go
+│   │   └── relation_service.go
+│   ├── model/api/video/v1/           # 生成的 Protobuf Go 代码
+│   │   ├── common.pb.go
+│   │   ├── user.pb.go
+│   │   ├── video.pb.go
+│   │   ├── interaction.pb.go
+│   │   └── relation.pb.go
+│   └── router/v1/                    # 生成的路由注册
+│       ├── user.go
+│       ├── video.go
+│       ├── interaction.go
+│       ├── relation.go
+│       └── middleware.go             # 中间件挂载点
+├── pkg/                              # 待创建：公共工具包
+│   ├── auth/                         # JWT、密码哈希、双 Token
+│   ├── middleware/                   # 认证、日志、限流
+│   └── response/                     # 统一响应结构
+├── biz/dal/                          # 待创建：数据访问层
+│   ├── db/                           # GORM 初始化 & DAO
+│   ├── redis/                        # Redis 客户端、排行榜
+│   └── model/                        # User, Video, Like, Comment, Relation
+├── storage/videos/                   # 待创建：投稿文件存储
+├── go.mod / go.sum                   # 依赖管理
+├── build.sh                          # 构建脚本
+└── Dockerfile                        # 待创建：Docker 部署
 ```
 
 如果切换到 Kratos/其他框架，请保持职责划分一致，并在 README 中同步最新结构图。
 
 ## 开发流程与命令建议
 
-1. **生成脚手架**
+### hz 脚手架命令
+
+1. **初始化项目**（首次使用）
    ```bash
    cd video-platform
-   hz new fanone_video --idl=api/video/v1/video.proto --idl_type=protobuf
-   # 或者 kratos new && make api
+   hz new --module video-platform --idl api/video/v1/user.proto --proto_path=.
    ```
-2. **依赖管理**
+
+2. **更新/新增模块**（添加新 proto 文件时）
+   ```bash
+   hz update --idl api/video/v1/video.proto --proto_path=.
+   hz update --idl api/video/v1/interaction.proto --proto_path=.
+   hz update --idl api/video/v1/relation.proto --proto_path=.
+   ```
+
+3. **依赖管理**
    ```bash
    go mod tidy
    go mod download
    ```
-3. **本地运行**
+
+4. **本地运行**
    ```bash
-   go run cmd/server/main.go
+   go run main.go
+   # 服务默认监听 :8888
    ```
-4. **构建镜像**
+
+5. **编译构建**
+   ```bash
+   go build -o fanone-video .
+   ./fanone-video
+   ```
+
+6. **构建镜像**
    ```bash
    docker build -t fanone-video:latest .
    docker run --env-file .env -p 8080:8080 fanone-video:latest
    ```
-5. **辅助脚本**：建议提供 `make proto`, `make run`, `make lint`, `make test` 等。
+
+### 注意事项
+
+- Proto 文件需要引入 `api.proto`（Hertz HTTP 注解定义）
+- 注解使用 `(.api.xxx)` 格式（带点号前缀）避免包名冲突
+- 多个 proto 文件分开 `hz update` 会导致 `Register` 函数重名，需手动重命名为 `RegisterUser`、`RegisterVideo` 等
 
 ## 领域特定约束
 
