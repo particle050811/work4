@@ -36,4 +36,8 @@ _testmain.go
 dumped_hertz_remote_config.json
 
 # 编译产物
-fanone-video
+/fanone-video
+/video-platform
+
+# 调试产物
+__debug_bin*

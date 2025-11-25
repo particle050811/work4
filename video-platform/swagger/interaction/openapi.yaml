@@ -1,0 +1,116 @@
+# Generated with protoc-gen-http-swagger
+# https://github.com/hertz-contrib/swagger-generate/blob/main/protoc-gen-http-swagger
+
+openapi: 3.0.3
+info:
+    title: InteractionService API
+    version: 3.0.3
+paths:
+    /api/v1/interaction/comment:
+        post:
+            tags:
+                - InteractionService
+            description: 评论相关
+            operationId: InteractionService_PublishComment
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PublishCommentRequestBody'
+            responses: {}
+    /api/v1/interaction/comment/delete:
+        post:
+            tags:
+                - InteractionService
+            operationId: InteractionService_DeleteComment
+            requestBody:
+                description: |-
+                    DeleteCommentRequest: 删除评论
+                     只需 comment_id，视频归属信息从数据库获取
+                     注意：需校验当前用户是否为评论作者
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteCommentRequestBody'
+            responses: {}
+    /api/v1/interaction/comment/list:
+        get:
+            tags:
+                - InteractionService
+            operationId: InteractionService_ListUserComments
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses: {}
+    /api/v1/interaction/like:
+        post:
+            tags:
+                - InteractionService
+            description: 视频点赞（未来扩展：CommentLikeAction）
+            operationId: InteractionService_VideoLikeAction
+            requestBody:
+                description: |-
+                    VideoLikeActionRequest: 对视频点赞/取消点赞
+                     未来扩展评论点赞时，新增 CommentLikeActionRequest 即可
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/VideoLikeActionRequestBody'
+            responses: {}
+    /api/v1/interaction/like/list:
+        get:
+            tags:
+                - InteractionService
+            operationId: InteractionService_ListLikedVideos
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses: {}
+components:
+    schemas:
+        DeleteCommentRequestBody:
+            type: object
+            properties:
+                comment_id:
+                    type: string
+        PublishCommentRequestBody:
+            type: object
+            properties:
+                video_id:
+                    type: string
+                content:
+                    type: string
+        VideoLikeActionRequestBody:
+            type: object
+            properties:
+                video_id:
+                    type: string
+                action_type:
+                    type: integer
+                    format: int32
+tags:
+    - name: InteractionService

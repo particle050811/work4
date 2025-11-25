@@ -4,11 +4,16 @@ package main
 
 import (
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"video-platform/swagger"
 )
 
 func main() {
 	h := server.Default()
 
 	register(h)
+
+	// 绑定 Swagger UI，访问 /swagger/index.html 查看接口文档
+	swagger.BindSwagger(h)
+
 	h.Spin()
 }

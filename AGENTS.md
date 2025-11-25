@@ -99,6 +99,12 @@ video-platform/
 │   ├── db/                           # GORM 初始化 & DAO
 │   ├── redis/                        # Redis 客户端、排行榜
 │   └── model/                        # User, Video, Like, Comment, Relation
+├── swagger/                          # Swagger API 文档
+│   ├── swagger.go                    # Swagger UI 绑定入口
+│   ├── user/openapi.yaml             # 用户模块 API 文档
+│   ├── video/openapi.yaml            # 视频模块 API 文档
+│   ├── interaction/openapi.yaml      # 互动模块 API 文档
+│   └── relation/openapi.yaml         # 社交模块 API 文档
 ├── storage/videos/                   # 待创建：投稿文件存储
 ├── go.mod / go.sum                   # 依赖管理
 ├── build.sh                          # 构建脚本
@@ -132,7 +138,7 @@ video-platform/
 
 4. **本地运行**
    ```bash
-   go run main.go
+   go run .
    # 服务默认监听 :8888
    ```
 
@@ -147,6 +153,27 @@ video-platform/
    docker build -t fanone-video:latest .
    docker run --env-file .env -p 8080:8080 fanone-video:latest
    ```
+
+### Swagger 文档生成
+
+使用 `protoc-gen-http-swagger` 插件为各模块生成独立的 OpenAPI 文档：
+
+```bash
+# 安装插件（首次）
+go install github.com/hertz-contrib/swagger-generate/protoc-gen-http-swagger@latest
+
+# 生成/更新各模块文档
+protoc --http-swagger_out=swagger/user --proto_path=. api/video/v1/user.proto
+protoc --http-swagger_out=swagger/video --proto_path=. api/video/v1/video.proto
+protoc --http-swagger_out=swagger/interaction --proto_path=. api/video/v1/interaction.proto
+protoc --http-swagger_out=swagger/relation --proto_path=. api/video/v1/relation.proto
+```
+
+启动服务后访问 Swagger UI：
+- 用户模块: http://localhost:8888/swagger/user/index.html
+- 视频模块: http://localhost:8888/swagger/video/index.html
+- 互动模块: http://localhost:8888/swagger/interaction/index.html
+- 社交模块: http://localhost:8888/swagger/relation/index.html
 
 ### 注意事项
 

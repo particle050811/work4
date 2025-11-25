@@ -1,0 +1,90 @@
+# Generated with protoc-gen-http-swagger
+# https://github.com/hertz-contrib/swagger-generate/blob/main/protoc-gen-http-swagger
+
+openapi: 3.0.3
+info:
+    title: RelationService API
+    version: 3.0.3
+paths:
+    /api/v1/relation/action:
+        post:
+            tags:
+                - RelationService
+            operationId: RelationService_RelationAction
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RelationActionRequestBody'
+            responses: {}
+    /api/v1/relation/follower/list:
+        get:
+            tags:
+                - RelationService
+            operationId: RelationService_ListFollowers
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses: {}
+    /api/v1/relation/following/list:
+        get:
+            tags:
+                - RelationService
+            operationId: RelationService_ListFollowings
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses: {}
+    /api/v1/relation/friend/list:
+        get:
+            tags:
+                - RelationService
+            operationId: RelationService_ListFriends
+            parameters:
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses: {}
+components:
+    schemas:
+        RelationActionRequestBody:
+            type: object
+            properties:
+                to_user_id:
+                    type: string
+                action_type:
+                    type: integer
+                    format: int32
+tags:
+    - name: RelationService

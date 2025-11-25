@@ -1,0 +1,82 @@
+# Generated with protoc-gen-http-swagger
+# https://github.com/hertz-contrib/swagger-generate/blob/main/protoc-gen-http-swagger
+
+openapi: 3.0.3
+info:
+    title: UserService API
+    version: 3.0.3
+paths:
+    /api/v1/user/avatar:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_UploadAvatar
+            responses: {}
+    /api/v1/user/info:
+        get:
+            tags:
+                - UserService
+            operationId: UserService_GetUserInfo
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+            responses: {}
+    /api/v1/user/login:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_Login
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/LoginRequestBody'
+            responses: {}
+    /api/v1/user/refresh:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_RefreshToken
+            requestBody:
+                description: 'RefreshTokenRequest: 使用 refresh_token 换取新的 access_token'
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RefreshTokenRequestBody'
+            responses: {}
+    /api/v1/user/register:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_Register
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RegisterRequestBody'
+            responses: {}
+components:
+    schemas:
+        LoginRequestBody:
+            type: object
+            properties:
+                username:
+                    type: string
+                password:
+                    type: string
+        RefreshTokenRequestBody:
+            type: object
+            properties:
+                refresh_token:
+                    type: string
+        RegisterRequestBody:
+            type: object
+            properties:
+                username:
+                    type: string
+                password:
+                    type: string
+tags:
+    - name: UserService

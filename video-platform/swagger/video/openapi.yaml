@@ -1,0 +1,132 @@
+# Generated with protoc-gen-http-swagger
+# https://github.com/hertz-contrib/swagger-generate/blob/main/protoc-gen-http-swagger
+
+openapi: 3.0.3
+info:
+    title: VideoService API
+    version: 3.0.3
+paths:
+    /api/v1/video/comments:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListVideoComments
+            parameters:
+                - name: video_id
+                  in: query
+                  schema:
+                    type: string
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses: {}
+    /api/v1/video/hot:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_GetHotVideos
+            parameters:
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses: {}
+    /api/v1/video/list:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListPublishedVideos
+            parameters:
+                - name: user_id
+                  in: query
+                  schema:
+                    type: string
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses: {}
+    /api/v1/video/publish:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_PublishVideo
+            requestBody:
+                description: |-
+                    PublishVideoRequest: 视频文件通过 multipart/form-data 上传
+                     实际 handler 中使用 c.FormFile("video") 获取文件
+                content:
+                    multipart/form-data:
+                        schema:
+                            $ref: '#/components/schemas/PublishVideoRequestForm'
+                    application/x-www-form-urlencoded:
+                        schema:
+                            $ref: '#/components/schemas/PublishVideoRequestForm'
+            responses: {}
+    /api/v1/video/search:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_SearchVideos
+            parameters:
+                - name: keywords
+                  in: query
+                  schema:
+                    type: string
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: page_num
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: from_date
+                  in: query
+                  schema:
+                    type: string
+                - name: to_date
+                  in: query
+                  schema:
+                    type: string
+                - name: username
+                  in: query
+                  schema:
+                    type: string
+                - name: sort_by
+                  in: query
+                  schema:
+                    type: string
+            responses: {}
+components:
+    schemas:
+        PublishVideoRequestForm:
+            type: object
+            properties:
+                title:
+                    type: string
+                description:
+                    type: string
+tags:
+    - name: VideoService
