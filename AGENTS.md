@@ -205,7 +205,7 @@ protoc --http-swagger_out=swagger/relation --proto_path=. api/video/v1/relation.
 
 - 使用 Apifox / Postman 对照官方文档调试；`base_url` 默认 `http://localhost:8080`。
 - 单元测试覆盖 service 与 repository；重点验证权限校验、分页逻辑、Redis 缓存读写。
-- 引入 `tools/` 目录编写简单的 e2e 测试客户端，依次跑完注册→投稿→点赞→评论→关注流程。
+- 引入 `test/` 目录编写简单的 e2e 测试客户端，依次跑完注册→投稿→点赞→评论→关注流程。
 - 新功能上线前至少手动验证：
   1. 双 Token 登录、刷新；
   2. 投稿上传并能在列表 / 搜索 / 热榜中展示；
