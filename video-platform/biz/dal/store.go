@@ -10,11 +10,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// Store 统一数据访问层，包含 DB 和 Redis 客户端
+// Store 统一数据访问层，聚合 MySQL 和 Redis
 type Store struct {
 	db    *gorm.DB
 	redis *redis.Client // 可为 nil（降级模式）
 }
+
+// 确保 Store 实现 StoreLike 接口
+var _ StoreLike = (*Store)(nil)
 
 var defaultStore *Store
 
@@ -32,14 +35,41 @@ func GetStore() *Store {
 	return defaultStore
 }
 
-// DB 获取数据库实例（用于复杂查询或传递给 db 包函数）
+// DB 获取数据库实例
 func (s *Store) DB() *gorm.DB {
 	return s.db
+}
+
+// Redis 获取 Redis 客户端（实现 CacheProvider）
+func (s *Store) Redis() RedisClient {
+	return s.redis
 }
 
 // HasRedis 检查 Redis 是否可用
 func (s *Store) HasRedis() bool {
 	return s.redis != nil
+}
+
+// WithTx 在事务中执行操作，返回带事务的 Store
+func (s *Store) WithTx(fn func(txStore *Store) error) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		txStore := &Store{db: tx, redis: s.redis}
+		return fn(txStore)
+	})
+}
+
+// Close 关闭所有连接
+func (s *Store) Close() error {
+	// 关闭 MySQL
+	sqlDB, err := s.db.DB()
+	if err == nil {
+		sqlDB.Close()
+	}
+	// 关闭 Redis
+	if s.redis != nil {
+		s.redis.Close()
+	}
+	return nil
 }
 
 // autoMigrate 自动迁移所有模型
@@ -50,4 +80,3 @@ func autoMigrate(gormDB *gorm.DB) {
 	}
 	log.Println("数据库迁移完成")
 }
-

@@ -32,7 +32,7 @@ func Register(ctx context.Context, c *app.RequestContext) {
 	store := dal.GetStore()
 
 	// 检查用户名是否已存在
-	exists, err := db.UserExists(store.DB(), req.Username)
+	exists, err := db.UserExists(store, req.Username)
 	if err != nil {
 		log.Printf("检查用户名失败: %v", err)
 		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
@@ -62,7 +62,7 @@ func Register(ctx context.Context, c *app.RequestContext) {
 		Username: req.Username,
 		Password: hashedPassword,
 	}
-	if err := db.CreateUser(store.DB(), user); err != nil {
+	if err := db.CreateUser(store, user); err != nil {
 		log.Printf("创建用户失败: %v", err)
 		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
 			Base: response.InternalError(),
@@ -89,7 +89,7 @@ func Login(ctx context.Context, c *app.RequestContext) {
 	store := dal.GetStore()
 
 	// 查找用户
-	user, err := db.GetUserByUsername(store.DB(), req.Username)
+	user, err := db.GetUserByUsername(store, req.Username)
 	if err != nil {
 		log.Printf("查询用户失败: %v", err)
 		c.JSON(consts.StatusInternalServerError, &v1.LoginResponse{
@@ -200,7 +200,7 @@ func GetUserInfo(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	user, err := db.GetUserByID(store.DB(), userID)
+	user, err := db.GetUserByID(store, userID)
 	if err != nil {
 		log.Printf("查询用户失败: %v", err)
 		c.JSON(consts.StatusInternalServerError, &v1.GetUserInfoResponse{
@@ -260,7 +260,7 @@ func UploadAvatar(ctx context.Context, c *app.RequestContext) {
 
 	// 更新用户头像 URL
 	avatarURL := fmt.Sprintf("/storage/avatars/%s", filename)
-	if err := db.UpdateUserAvatar(store.DB(), userID, avatarURL); err != nil {
+	if err := db.UpdateUserAvatar(store, userID, avatarURL); err != nil {
 		log.Printf("更新头像失败: %v", err)
 		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
 			Base: response.InternalError(),
@@ -269,7 +269,7 @@ func UploadAvatar(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 获取更新后的用户信息
-	user, err := db.GetUserByID(store.DB(), userID)
+	user, err := db.GetUserByID(store, userID)
 	if err != nil {
 		log.Printf("查询用户失败: %v", err)
 		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
