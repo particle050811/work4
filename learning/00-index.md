@@ -8,6 +8,20 @@
 | 2025-11-25 | Protobuf 设计与字段规范 | [02-protobuf-design.md](./02-protobuf-design.md) |
 | 2025-11-25 | Hertz 框架与 hz 脚手架 | [03-hertz-and-hz.md](./03-hertz-and-hz.md) |
 | 2025-12-07 | Go Context 用法详解 | [04-go-context.md](./04-go-context.md) |
+| 2025-12-15 | 互动模块实现详解 | [05-interaction-module.md](./05-interaction-module.md) |
+
+### 05-interaction-module.md 内容概要
+
+| 章节 | 内容 |
+|------|------|
+| §1 | 模块概览（5 个接口、认证要求） |
+| §2 | 点赞模块设计（数据模型、事务处理、增量更新、幂等性） |
+| §3 | 评论模块设计（发布、删除事务） |
+| §4 | 权限校验对比（点赞 vs 删除评论） |
+| §5 | Redis 热榜同步 |
+| §6 | 数据流总结 |
+| §7 | 关键代码位置 |
+| §8 | 推荐阅读 |
 
 ### 04-go-context.md 内容概要
 
@@ -40,6 +54,6 @@
 
 ## 待整理主题
 
-- [ ] 认证 & 双 Token (`05-auth-and-jwt.md`)
-- [ ] Redis / 缓存应用 (`06-redis-cache.md`)
-- [ ] 视频/互动/社交业务 (`07-video-domain.md`)
+- [ ] 认证 & 双 Token (`06-auth-and-jwt.md`)
+- [ ] Redis / 缓存应用 (`07-redis-cache.md`)
+- [ ] 社交模块 (`08-relation-module.md`)
