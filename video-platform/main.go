@@ -3,11 +3,23 @@
 package main
 
 import (
+	"log"
+
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/joho/godotenv"
+	"video-platform/biz/dal"
 	"video-platform/swagger"
 )
 
 func main() {
+	// 加载 .env 配置文件
+	if err := godotenv.Load(); err != nil {
+		log.Println("未找到 .env 文件，将使用系统环境变量")
+	}
+
+	// 初始化数据访问层（MySQL + Redis）
+	dal.Init()
+
 	h := server.Default()
 
 	register(h)

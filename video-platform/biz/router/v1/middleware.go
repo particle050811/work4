@@ -4,6 +4,7 @@ package v1
 
 import (
 	"github.com/cloudwego/hertz/pkg/app"
+	"video-platform/pkg/middleware"
 )
 
 func rootMw() []app.HandlerFunc {
@@ -27,27 +28,27 @@ func _userMw() []app.HandlerFunc {
 }
 
 func _uploadavatarMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	// 上传头像需要认证
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }
 
 func _getuserinfoMw() []app.HandlerFunc {
-	// your code...
+	// 获取用户信息不需要认证
 	return nil
 }
 
 func _loginMw() []app.HandlerFunc {
-	// your code...
+	// 登录不需要认证
 	return nil
 }
 
 func _refreshtokenMw() []app.HandlerFunc {
-	// your code...
+	// 刷新令牌不需要认证
 	return nil
 }
 
 func _registerMw() []app.HandlerFunc {
-	// your code...
+	// 注册不需要认证
 	return nil
 }
 

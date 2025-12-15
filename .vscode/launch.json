@@ -2,101 +2,14 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run FanOne (go run .)",
-            "type": "go",
-            "request": "launch",
-            "mode": "auto",
-            "program": "${workspaceFolder}/video-platform",
-            "cwd": "${workspaceFolder}/video-platform",
-            "env": {
-                "GO111MODULE": "on",
-                "MYSQL_DSN": "root:password@tcp(127.0.0.1:3306)/fanone?charset=utf8mb4&parseTime=True&loc=Local",
-                "REDIS_ADDR": "127.0.0.1:6379",
-                "REDIS_PASSWORD": "",
-                "REDIS_DB": "0",
-                "JWT_SECRET": "your-jwt-secret-key-for-development",
-                "JWT_ACCESS_EXPIRE": "15m",
-                "JWT_REFRESH_EXPIRE": "168h",
-                "STORAGE_PATH": "./storage",
-                "SERVER_PORT": "8888"
-            },
-            "buildFlags": "-tags=jsoniter",
-            "showLog": true
-        },
-        {
             "name": "FanOne Video Platform",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/video-platform",
             "cwd": "${workspaceFolder}/video-platform",
-            "env": {
-                "GO111MODULE": "on",
-                "MYSQL_DSN": "root:password@tcp(127.0.0.1:3306)/fanone?charset=utf8mb4&parseTime=True&loc=Local",
-                "REDIS_ADDR": "127.0.0.1:6379",
-                "REDIS_PASSWORD": "",
-                "REDIS_DB": "0",
-                "JWT_SECRET": "your-jwt-secret-key-for-development",
-                "JWT_ACCESS_EXPIRE": "15m",
-                "JWT_REFRESH_EXPIRE": "168h",
-                "STORAGE_PATH": "./storage",
-                "SERVER_PORT": "8888"
-            },
-            "args": [],
+            "envFile": "${workspaceFolder}/video-platform/.env",
             "showLog": true
-        },
-        {
-            "name": "FanOne Debug with Delve",
-            "type": "go",
-            "request": "launch",
-            "mode": "debug",
-            "program": "${workspaceFolder}/video-platform",
-            "cwd": "${workspaceFolder}/video-platform",
-            "env": {
-                "GO111MODULE": "on",
-                "MYSQL_DSN": "root:password@tcp(127.0.0.1:3306)/fanone?charset=utf8mb4&parseTime=True&loc=Local",
-                "REDIS_ADDR": "127.0.0.1:6379",
-                "REDIS_PASSWORD": "",
-                "REDIS_DB": "0",
-                "JWT_SECRET": "your-jwt-secret-key-for-development",
-                "JWT_ACCESS_EXPIRE": "15m",
-                "JWT_REFRESH_EXPIRE": "168h",
-                "STORAGE_PATH": "./storage",
-                "SERVER_PORT": "8888"
-            },
-            "args": [],
-            "showLog": true,
-            "dlvFlags": ["--check-go-version=false"]
-        },
-        {
-            "name": "FanOne Test Current Package",
-            "type": "go",
-            "request": "launch",
-            "mode": "test",
-            "program": "${fileDirname}",
-            "env": {
-                "GO111MODULE": "on"
-            },
-            "showLog": true
-        },
-        {
-            "name": "FanOne Test All",
-            "type": "go",
-            "request": "launch",
-            "mode": "test",
-            "program": "${workspaceFolder}/video-platform/...",
-            "env": {
-                "GO111MODULE": "on"
-            },
-            "showLog": true
-        },
-        {
-            "name": "Attach to Process",
-            "type": "go",
-            "request": "attach",
-            "mode": "local",
-            "processId": "${command:pickProcess}"
         }
-    ],
-    "compounds": []
+    ]
 }

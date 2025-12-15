@@ -66,6 +66,7 @@ video-platform/
 ├── main.go                           # 服务入口
 ├── router.go                         # 自定义路由（可扩展）
 ├── router_gen.go                     # 生成的路由注册入口
+├── .env.example                      # 环境变量示例
 ├── api.proto                         # Hertz HTTP 注解定义文件
 ├── api/video/v1/                     # Protobuf 接口定义
 │   ├── common.proto                  # 公共消息（BaseResponse、PageParams）
@@ -74,38 +75,47 @@ video-platform/
 │   ├── interaction.proto             # 互动模块（5 接口）
 │   └── relation.proto                # 社交模块（4 接口）
 ├── biz/
-│   ├── handler/v1/                   # HTTP 处理器（待实现业务逻辑）
-│   │   ├── user_service.go
-│   │   ├── video_service.go
-│   │   ├── interaction_service.go
-│   │   └── relation_service.go
+│   ├── handler/v1/                   # HTTP 处理器
+│   │   ├── user_service.go           # ✅ 已实现：注册、登录、刷新令牌、用户信息、头像上传
+│   │   ├── video_service.go          # 待实现
+│   │   ├── interaction_service.go    # 待实现
+│   │   └── relation_service.go       # 待实现
 │   ├── model/api/video/v1/           # 生成的 Protobuf Go 代码
 │   │   ├── common.pb.go
 │   │   ├── user.pb.go
 │   │   ├── video.pb.go
 │   │   ├── interaction.pb.go
 │   │   └── relation.pb.go
+│   ├── dal/                          # 数据访问层
+│   │   ├── store.go                  # 统一 DB/Redis 入口
+│   │   ├── redis.go                  # Redis 客户端初始化（降级模式）
+│   │   ├── db/
+│   │   │   ├── db.go                 # MySQL 初始化
+│   │   │   └── user_dao.go           # ✅ 用户 DAO
+│   │   └── model/
+│   │       └── user.go               # ✅ 用户模型
 │   └── router/v1/                    # 生成的路由注册
 │       ├── user.go
 │       ├── video.go
 │       ├── interaction.go
 │       ├── relation.go
 │       └── middleware.go             # 中间件挂载点
-├── pkg/                              # 待创建：公共工具包
-│   ├── auth/                         # JWT、密码哈希、双 Token
-│   ├── middleware/                   # 认证、日志、限流
-│   └── response/                     # 统一响应结构
-├── biz/dal/                          # 待创建：数据访问层
-│   ├── db/                           # GORM 初始化 & DAO
-│   ├── redis/                        # Redis 客户端、排行榜
-│   └── model/                        # User, Video, Like, Comment, Relation
+├── pkg/                              # 公共工具包
+│   ├── auth/
+│   │   ├── jwt.go                    # ✅ JWT 双 Token 管理
+│   │   └── password.go               # ✅ 密码哈希
+│   ├── middleware/
+│   │   └── auth.go                   # ✅ 认证中间件
+│   └── response/
+│       └── response.go               # ✅ 统一响应结构
 ├── swagger/                          # Swagger API 文档
 │   ├── swagger.go                    # Swagger UI 绑定入口
-│   ├── user/openapi.yaml             # 用户模块 API 文档
-│   ├── video/openapi.yaml            # 视频模块 API 文档
-│   ├── interaction/openapi.yaml      # 互动模块 API 文档
-│   └── relation/openapi.yaml         # 社交模块 API 文档
-├── storage/videos/                   # 待创建：投稿文件存储
+│   ├── user/openapi.yaml
+│   ├── video/openapi.yaml
+│   ├── interaction/openapi.yaml
+│   └── relation/openapi.yaml
+├── storage/                          # 文件存储
+│   └── avatars/                      # ✅ 用户头像
 ├── go.mod / go.sum                   # 依赖管理
 ├── build.sh                          # 构建脚本
 └── Dockerfile                        # 待创建：Docker 部署

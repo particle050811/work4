@@ -4,88 +4,303 @@ package v1
 
 import (
 	"context"
+	"fmt"
+	"log"
+
+	"video-platform/biz/dal"
+	"video-platform/biz/dal/db"
+	"video-platform/biz/dal/model"
 	v1 "video-platform/biz/model/api/video/v1"
+	"video-platform/pkg/auth"
+	"video-platform/pkg/response"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
-// Register .
+// Register 用户注册
 // @router /api/v1/user/register [POST]
 func Register(ctx context.Context, c *app.RequestContext) {
-	var err error
 	var req v1.RegisterRequest
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.RegisterResponse{
+			Base: response.ParamError(err.Error()),
+		})
 		return
 	}
 
-	resp := new(v1.RegisterResponse)
+	store := dal.GetStore()
 
-	c.JSON(consts.StatusOK, resp)
+	// 检查用户名是否已存在
+	exists, err := db.UserExists(store.DB(), req.Username)
+	if err != nil {
+		log.Printf("检查用户名失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+	if exists {
+		c.JSON(consts.StatusOK, &v1.RegisterResponse{
+			Base: response.Error(response.CodeUserExists),
+		})
+		return
+	}
+
+	// 密码哈希
+	hashedPassword, err := auth.HashPassword(req.Password)
+	if err != nil {
+		log.Printf("密码哈希失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	// 创建用户
+	user := &model.User{
+		Username: req.Username,
+		Password: hashedPassword,
+	}
+	if err := db.CreateUser(store.DB(), user); err != nil {
+		log.Printf("创建用户失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, &v1.RegisterResponse{
+		Base: response.Success("注册成功"),
+	})
 }
 
-// Login .
+// Login 用户登录
 // @router /api/v1/user/login [POST]
 func Login(ctx context.Context, c *app.RequestContext) {
-	var err error
 	var req v1.LoginRequest
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.LoginResponse{
+			Base: response.ParamError(err.Error()),
+		})
 		return
 	}
 
-	resp := new(v1.LoginResponse)
+	store := dal.GetStore()
 
-	c.JSON(consts.StatusOK, resp)
+	// 查找用户
+	user, err := db.GetUserByUsername(store.DB(), req.Username)
+	if err != nil {
+		log.Printf("查询用户失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.LoginResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+	if user == nil {
+		c.JSON(consts.StatusOK, &v1.LoginResponse{
+			Base: response.Error(response.CodeUserNotFound),
+		})
+		return
+	}
+
+	// 验证密码
+	if !auth.CheckPassword(req.Password, user.Password) {
+		c.JSON(consts.StatusOK, &v1.LoginResponse{
+			Base: response.Error(response.CodePasswordWrong),
+		})
+		return
+	}
+
+	// 生成 JWT Token 对
+	jwtMgr := auth.GetJWTManager()
+	accessToken, refreshToken, err := jwtMgr.GenerateTokenPair(user.ID, user.Username)
+	if err != nil {
+		log.Printf("生成令牌失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.LoginResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, &v1.LoginResponse{
+		Base:         response.Success("登录成功"),
+		Data:         modelToProtoUser(user),
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	})
 }
 
-// RefreshToken .
+// RefreshToken 刷新令牌
 // @router /api/v1/user/refresh [POST]
 func RefreshToken(ctx context.Context, c *app.RequestContext) {
-	var err error
 	var req v1.RefreshTokenRequest
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.RefreshTokenResponse{
+			Base: response.ParamError(err.Error()),
+		})
 		return
 	}
 
-	resp := new(v1.RefreshTokenResponse)
+	if req.RefreshToken == "" {
+		c.JSON(consts.StatusBadRequest, &v1.RefreshTokenResponse{
+			Base: response.ParamError("refresh_token 不能为空"),
+		})
+		return
+	}
 
-	c.JSON(consts.StatusOK, resp)
+	jwtMgr := auth.GetJWTManager()
+	newAccessToken, newRefreshToken, err := jwtMgr.RefreshTokens(req.RefreshToken)
+	if err != nil {
+		if err == auth.ErrTokenExpired {
+			c.JSON(consts.StatusOK, &v1.RefreshTokenResponse{
+				Base: response.Error(response.CodeTokenExpired),
+			})
+			return
+		}
+		c.JSON(consts.StatusOK, &v1.RefreshTokenResponse{
+			Base: response.Error(response.CodeTokenInvalid),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, &v1.RefreshTokenResponse{
+		Base:         response.Success("刷新成功"),
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshToken,
+	})
 }
 
-// GetUserInfo .
+// GetUserInfo 获取用户信息
 // @router /api/v1/user/info [GET]
 func GetUserInfo(ctx context.Context, c *app.RequestContext) {
-	var err error
 	var req v1.GetUserInfoRequest
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.GetUserInfoResponse{
+			Base: response.ParamError(err.Error()),
+		})
 		return
 	}
 
-	resp := new(v1.GetUserInfoResponse)
+	if req.UserId == "" {
+		c.JSON(consts.StatusBadRequest, &v1.GetUserInfoResponse{
+			Base: response.ParamError("user_id 不能为空"),
+		})
+		return
+	}
 
-	c.JSON(consts.StatusOK, resp)
+	store := dal.GetStore()
+
+	// 将 user_id 转换为 uint
+	var userID uint
+	if _, err := fmt.Sscanf(req.UserId, "%d", &userID); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.GetUserInfoResponse{
+			Base: response.ParamError("user_id 格式错误"),
+		})
+		return
+	}
+
+	user, err := db.GetUserByID(store.DB(), userID)
+	if err != nil {
+		log.Printf("查询用户失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.GetUserInfoResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+	if user == nil {
+		c.JSON(consts.StatusOK, &v1.GetUserInfoResponse{
+			Base: response.Error(response.CodeUserNotFound),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, &v1.GetUserInfoResponse{
+		Base: response.Success(),
+		Data: modelToProtoUser(user),
+	})
 }
 
-// UploadAvatar .
+// UploadAvatar 上传用户头像
 // @router /api/v1/user/avatar [POST]
 func UploadAvatar(ctx context.Context, c *app.RequestContext) {
-	var err error
-	var req v1.UploadAvatarRequest
-	err = c.BindAndValidate(&req)
+	// 从上下文获取当前用户 ID（需要认证中间件设置）
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(consts.StatusUnauthorized, &v1.UploadAvatarResponse{
+			Base: response.Unauthorized(),
+		})
+		return
+	}
+	userID := userIDValue.(uint)
+
+	// 获取上传的文件
+	fileHeader, err := c.FormFile("avatar")
 	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+		c.JSON(consts.StatusBadRequest, &v1.UploadAvatarResponse{
+			Base: response.ParamError("请上传头像文件"),
+		})
 		return
 	}
 
-	resp := new(v1.UploadAvatarResponse)
+	// 生成文件名和保存路径
+	filename := fmt.Sprintf("avatar_%d_%s", userID, fileHeader.Filename)
+	savePath := fmt.Sprintf("storage/avatars/%s", filename)
 
-	c.JSON(consts.StatusOK, resp)
+	// 保存文件
+	if err := c.SaveUploadedFile(fileHeader, savePath); err != nil {
+		log.Printf("保存头像失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	store := dal.GetStore()
+
+	// 更新用户头像 URL
+	avatarURL := fmt.Sprintf("/storage/avatars/%s", filename)
+	if err := db.UpdateUserAvatar(store.DB(), userID, avatarURL); err != nil {
+		log.Printf("更新头像失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	// 获取更新后的用户信息
+	user, err := db.GetUserByID(store.DB(), userID)
+	if err != nil {
+		log.Printf("查询用户失败: %v", err)
+		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, &v1.UploadAvatarResponse{
+		Base: response.Success("头像上传成功"),
+		Data: modelToProtoUser(user),
+	})
+}
+
+// modelToProtoUser 将数据库模型转换为 Protobuf 用户结构
+func modelToProtoUser(user *model.User) *v1.User {
+	if user == nil {
+		return nil
+	}
+
+	protoUser := &v1.User{
+		Id:        fmt.Sprintf("%d", user.ID),
+		Username:  user.Username,
+		AvatarUrl: user.AvatarURL,
+		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+	}
+
+	if user.DeletedAt.Valid {
+		protoUser.DeletedAt = user.DeletedAt.Time.Format("2006-01-02 15:04:05")
+	}
+
+	return protoUser
 }
