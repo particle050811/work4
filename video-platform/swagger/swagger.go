@@ -3,12 +3,9 @@ package swagger
 import (
 	"context"
 	_ "embed"
-	"log"
-	"os"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
-	"github.com/hertz-contrib/cors"
 	"github.com/hertz-contrib/swagger"
 	swaggerFiles "github.com/swaggo/files"
 )
@@ -27,22 +24,6 @@ var relationYAML []byte
 
 // BindSwagger 绑定所有模块的 Swagger UI
 func BindSwagger(h *server.Hertz) {
-	h.Use(cors.Default())
-
-	// 挂载本地静态资源：用于访问上传后的头像文件
-	// 约定 UploadAvatar 返回的 avatar_url 形如：/storage/avatars/<filename>
-	if err := os.MkdirAll("./storage/avatars", 0o755); err != nil {
-		log.Printf("创建头像目录失败: %v", err)
-	}
-	h.Static("/storage/avatars", "./storage/avatars")
-
-	// 挂载本地静态资源：用于访问上传后的视频文件
-	// 约定 PublishVideo 返回的 video_url 形如：/storage/videos/<filename>
-	if err := os.MkdirAll("./storage/videos", 0o755); err != nil {
-		log.Printf("创建视频目录失败: %v", err)
-	}
-	h.Static("/storage/videos", "./storage/videos")
-
 	// 各模块独立的 Swagger UI
 	// 用户模块: /swagger/user/index.html
 	h.GET("/swagger/user/*any", swagger.WrapHandler(swaggerFiles.Handler, swagger.URL("/openapi/user.yaml")))

@@ -1,123 +1,17 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 )
 
-const defaultBaseURL = "http://localhost:8888"
+// 错误收集器
+var errors []string
 
-// 响应结构
-type BaseResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-}
-
-type User struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	AvatarURL string `json:"avatar_url"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-}
-
-type RegisterResponse struct {
-	Base BaseResponse `json:"base"`
-}
-
-type LoginResponse struct {
-	Base         BaseResponse `json:"base"`
-	Data         User         `json:"data"`
-	AccessToken  string       `json:"access_token"`
-	RefreshToken string       `json:"refresh_token"`
-}
-
-type RefreshTokenResponse struct {
-	Base         BaseResponse `json:"base"`
-	AccessToken  string       `json:"access_token"`
-	RefreshToken string       `json:"refresh_token"`
-}
-
-type GetUserInfoResponse struct {
-	Base BaseResponse `json:"base"`
-	Data User         `json:"data"`
-}
-
-type PublishVideoResponse struct {
-	Base BaseResponse `json:"base"`
-}
-
-type Video struct {
-	ID           string `json:"id"`
-	UserID       string `json:"user_id"`
-	VideoURL     string `json:"video_url"`
-	CoverURL     string `json:"cover_url"`
-	Title        string `json:"title"`
-	Description  string `json:"description"`
-	VisitCount   int64  `json:"visit_count"`
-	LikeCount    int64  `json:"like_count"`
-	CommentCount int64  `json:"comment_count"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
-	DeletedAt    string `json:"deleted_at"`
-}
-
-type VideoListWithTotal struct {
-	Items []Video `json:"items"`
-	Total int64   `json:"total"`
-}
-
-type ListPublishedVideosResponse struct {
-	Base BaseResponse       `json:"base"`
-	Data VideoListWithTotal `json:"data"`
-}
-
-type SearchVideosResponse struct {
-	Base BaseResponse       `json:"base"`
-	Data VideoListWithTotal `json:"data"`
-}
-
-type GetHotVideosResponse struct {
-	Base BaseResponse       `json:"base"`
-	Data VideoListWithTotal `json:"data"`
-}
-
-type VideoComment struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	Username  string `json:"username"`
-	AvatarURL string `json:"avatar_url"`
-	Content   string `json:"content"`
-	LikeCount int64  `json:"like_count"`
-	CreatedAt string `json:"created_at"`
-}
-
-type VideoCommentList struct {
-	Items []VideoComment `json:"items"`
-	Total int64          `json:"total"`
-}
-
-type ListVideoCommentsResponse struct {
-	Base BaseResponse     `json:"base"`
-	Data VideoCommentList `json:"data"`
-}
-
-// 请求结果封装，包含错误信息
-type Result[T any] struct {
-	Data       T
-	StatusCode int
-	RawBody    string
-	Err        error
+func addError(testName, msg string) {
+	errors = append(errors, fmt.Sprintf("【%s】%s", testName, msg))
 }
 
 func main() {
@@ -146,10 +40,12 @@ func main() {
 	registerResult := testRegister(client, baseURL, username, password)
 	if registerResult.Err != nil {
 		fmt.Printf("    ✗ 请求失败: %v\n", registerResult.Err)
+		addError("1", fmt.Sprintf("请求失败: %v", registerResult.Err))
 	} else if registerResult.Data.Base.Code == 0 {
 		fmt.Printf("    ✓ 注册成功: %s\n", registerResult.Data.Base.Msg)
 	} else {
 		fmt.Printf("    ✗ 注册失败: %s（HTTP %d）\n", registerResult.Data.Base.Msg, registerResult.StatusCode)
+		addError("1", fmt.Sprintf("注册失败: %s", registerResult.Data.Base.Msg))
 	}
 	fmt.Println()
 
@@ -158,10 +54,12 @@ func main() {
 	registerResult2 := testRegister(client, baseURL, username, password)
 	if registerResult2.Err != nil {
 		fmt.Printf("    ✗ 请求失败: %v\n", registerResult2.Err)
+		addError("2", fmt.Sprintf("请求失败: %v", registerResult2.Err))
 	} else if registerResult2.Data.Base.Code != 0 {
 		fmt.Printf("    ✓ 符合预期，重复注册被拒绝: %s\n", registerResult2.Data.Base.Msg)
 	} else {
 		fmt.Printf("    ✗ 不符合预期，重复注册应该失败\n")
+		addError("2", "重复注册应该失败，但实际成功了")
 	}
 	fmt.Println()
 
@@ -170,6 +68,7 @@ func main() {
 	loginResult := testLogin(client, baseURL, username, password)
 	if loginResult.Err != nil {
 		fmt.Printf("    ✗ 请求失败: %v\n", loginResult.Err)
+		addError("3", fmt.Sprintf("请求失败: %v", loginResult.Err))
 	} else if loginResult.Data.Base.Code == 0 {
 		fmt.Printf("    ✓ 登录成功\n")
 		fmt.Printf("    - 用户ID: %s\n", loginResult.Data.Data.ID)
@@ -178,6 +77,7 @@ func main() {
 		fmt.Printf("    - RefreshToken: %s...\n", truncate(loginResult.Data.RefreshToken, 50))
 	} else {
 		fmt.Printf("    ✗ 登录失败: %s（HTTP %d）\n", loginResult.Data.Base.Msg, loginResult.StatusCode)
+		addError("3", fmt.Sprintf("登录失败: %s", loginResult.Data.Base.Msg))
 	}
 	fmt.Println()
 
@@ -186,10 +86,12 @@ func main() {
 	loginResult2 := testLogin(client, baseURL, username, "wrongpassword")
 	if loginResult2.Err != nil {
 		fmt.Printf("    ✗ 请求失败: %v\n", loginResult2.Err)
+		addError("4", fmt.Sprintf("请求失败: %v", loginResult2.Err))
 	} else if loginResult2.Data.Base.Code != 0 {
 		fmt.Printf("    ✓ 符合预期，错误密码被拒绝: %s\n", loginResult2.Data.Base.Msg)
 	} else {
 		fmt.Printf("    ✗ 不符合预期，错误密码应该登录失败\n")
+		addError("4", "错误密码应该登录失败，但实际成功了")
 	}
 	fmt.Println()
 
@@ -199,6 +101,7 @@ func main() {
 		userInfoResult := testGetUserInfo(client, baseURL, loginResult.Data.Data.ID)
 		if userInfoResult.Err != nil {
 			fmt.Printf("    ✗ 请求失败: %v\n", userInfoResult.Err)
+			addError("5", fmt.Sprintf("请求失败: %v", userInfoResult.Err))
 		} else if userInfoResult.Data.Base.Code == 0 {
 			fmt.Printf("    ✓ 获取成功\n")
 			fmt.Printf("    - 用户ID: %s\n", userInfoResult.Data.Data.ID)
@@ -206,6 +109,7 @@ func main() {
 			fmt.Printf("    - 创建时间: %s\n", userInfoResult.Data.Data.CreatedAt)
 		} else {
 			fmt.Printf("    ✗ 获取失败: %s（HTTP %d）\n", userInfoResult.Data.Base.Msg, userInfoResult.StatusCode)
+			addError("5", fmt.Sprintf("获取失败: %s", userInfoResult.Data.Base.Msg))
 		}
 	} else {
 		fmt.Println("    - 跳过（登录失败，无用户ID）")
@@ -218,12 +122,14 @@ func main() {
 		refreshResult := testRefreshToken(client, baseURL, loginResult.Data.RefreshToken)
 		if refreshResult.Err != nil {
 			fmt.Printf("    ✗ 请求失败: %v\n", refreshResult.Err)
+			addError("6", fmt.Sprintf("请求失败: %v", refreshResult.Err))
 		} else if refreshResult.Data.Base.Code == 0 {
 			fmt.Printf("    ✓ 刷新成功\n")
 			fmt.Printf("    - 新 AccessToken: %s...\n", truncate(refreshResult.Data.AccessToken, 50))
 			fmt.Printf("    - 新 RefreshToken: %s...\n", truncate(refreshResult.Data.RefreshToken, 50))
 		} else {
 			fmt.Printf("    ✗ 刷新失败: %s（HTTP %d）\n", refreshResult.Data.Base.Msg, refreshResult.StatusCode)
+			addError("6", fmt.Sprintf("刷新失败: %s", refreshResult.Data.Base.Msg))
 		}
 	} else {
 		fmt.Println("    - 跳过（登录失败，无 RefreshToken）")
@@ -235,10 +141,12 @@ func main() {
 	refreshResult2 := testRefreshToken(client, baseURL, "invalid_token")
 	if refreshResult2.Err != nil {
 		fmt.Printf("    ✗ 请求失败: %v\n", refreshResult2.Err)
+		addError("7", fmt.Sprintf("请求失败: %v", refreshResult2.Err))
 	} else if refreshResult2.Data.Base.Code != 0 {
 		fmt.Printf("    ✓ 符合预期，无效令牌被拒绝: %s\n", refreshResult2.Data.Base.Msg)
 	} else {
 		fmt.Printf("    ✗ 不符合预期，无效令牌应该刷新失败\n")
+		addError("7", "无效令牌应该刷新失败，但实际成功了")
 	}
 	fmt.Println()
 
@@ -259,15 +167,18 @@ func main() {
 	videoFilePath, cleanup, err := prepareVideoFile()
 	if err != nil {
 		fmt.Printf("    ✗ 准备视频文件失败: %v\n", err)
+		addError("8", fmt.Sprintf("准备视频文件失败: %v", err))
 	} else {
 		defer cleanup()
 		publishResult := testPublishVideo(client, baseURL, accessToken, videoTitle, videoDesc, videoFilePath)
 		if publishResult.Err != nil {
 			fmt.Printf("    ✗ 请求失败: %v\n", publishResult.Err)
+			addError("8", fmt.Sprintf("请求失败: %v", publishResult.Err))
 		} else if publishResult.Data.Base.Code == 0 {
 			fmt.Printf("    ✓ 投稿成功: %s\n", publishResult.Data.Base.Msg)
 		} else {
 			fmt.Printf("    ✗ 投稿失败: %s（HTTP %d）\n", publishResult.Data.Base.Msg, publishResult.StatusCode)
+			addError("8", fmt.Sprintf("投稿失败: %s", publishResult.Data.Base.Msg))
 			if publishResult.RawBody != "" {
 				fmt.Printf("    - 响应体: %s\n", truncate(publishResult.RawBody, 200))
 			}
@@ -284,6 +195,7 @@ func main() {
 		listResult := testListPublishedVideos(client, baseURL, userID, 1, 10)
 		if listResult.Err != nil {
 			fmt.Printf("    ✗ 请求失败: %v\n", listResult.Err)
+			addError("9", fmt.Sprintf("请求失败: %v", listResult.Err))
 		} else if listResult.Data.Base.Code == 0 {
 			fmt.Printf("    ✓ 获取成功，总数: %d，本页: %d\n", listResult.Data.Data.Total, len(listResult.Data.Data.Items))
 			if len(listResult.Data.Data.Items) > 0 {
@@ -294,6 +206,7 @@ func main() {
 			}
 		} else {
 			fmt.Printf("    ✗ 获取失败: %s（HTTP %d）\n", listResult.Data.Base.Msg, listResult.StatusCode)
+			addError("9", fmt.Sprintf("获取失败: %s", listResult.Data.Base.Msg))
 		}
 	}
 	fmt.Println()
@@ -306,10 +219,12 @@ func main() {
 		ok, status, err := checkStaticAvailable(client, baseURL, latestVideo.VideoURL)
 		if err != nil {
 			fmt.Printf("    ✗ 请求失败: %v\n", err)
+			addError("10", fmt.Sprintf("请求失败: %v", err))
 		} else if ok {
 			fmt.Printf("    ✓ 可访问（HTTP %d）\n", status)
 		} else {
 			fmt.Printf("    ✗ 不可访问（HTTP %d）\n", status)
+			addError("10", fmt.Sprintf("视频文件不可访问，HTTP %d", status))
 		}
 	}
 	fmt.Println()
@@ -319,6 +234,7 @@ func main() {
 	searchResult := testSearchVideos(client, baseURL, videoTitle, 1, 10, "", 0, 0, "latest")
 	if searchResult.Err != nil {
 		fmt.Printf("    ✗ 请求失败: %v\n", searchResult.Err)
+		addError("11", fmt.Sprintf("请求失败: %v", searchResult.Err))
 	} else if searchResult.Data.Base.Code == 0 {
 		fmt.Printf("    ✓ 搜索成功，总数: %d，本页: %d\n", searchResult.Data.Data.Total, len(searchResult.Data.Data.Items))
 		found := false
@@ -332,9 +248,11 @@ func main() {
 			fmt.Printf("    ✓ 符合预期：能搜到刚投稿的视频\n")
 		} else {
 			fmt.Printf("    ✗ 不符合预期：未搜到刚投稿的视频\n")
+			addError("11", "未搜到刚投稿的视频")
 		}
 	} else {
 		fmt.Printf("    ✗ 搜索失败: %s（HTTP %d）\n", searchResult.Data.Base.Msg, searchResult.StatusCode)
+		addError("11", fmt.Sprintf("搜索失败: %s", searchResult.Data.Base.Msg))
 	}
 	fmt.Println()
 
@@ -343,10 +261,12 @@ func main() {
 	hotResult := testGetHotVideos(client, baseURL, 1, 10)
 	if hotResult.Err != nil {
 		fmt.Printf("    ✗ 请求失败: %v\n", hotResult.Err)
+		addError("12", fmt.Sprintf("请求失败: %v", hotResult.Err))
 	} else if hotResult.Data.Base.Code == 0 {
 		fmt.Printf("    ✓ 获取成功，总数: %d，本页: %d\n", hotResult.Data.Data.Total, len(hotResult.Data.Data.Items))
 	} else {
 		fmt.Printf("    ✗ 获取失败: %s（HTTP %d）\n", hotResult.Data.Base.Msg, hotResult.StatusCode)
+		addError("12", fmt.Sprintf("获取失败: %s", hotResult.Data.Base.Msg))
 	}
 	fmt.Println()
 
@@ -358,6 +278,7 @@ func main() {
 		commentsResult := testListVideoComments(client, baseURL, latestVideo.ID, 1, 10)
 		if commentsResult.Err != nil {
 			fmt.Printf("    ✗ 请求失败: %v\n", commentsResult.Err)
+			addError("13", fmt.Sprintf("请求失败: %v", commentsResult.Err))
 		} else if commentsResult.Data.Base.Code == 0 {
 			fmt.Printf("    ✓ 获取成功，总数: %d，本页: %d\n", commentsResult.Data.Data.Total, len(commentsResult.Data.Data.Items))
 			if commentsResult.Data.Data.Total == 0 {
@@ -367,266 +288,20 @@ func main() {
 			}
 		} else {
 			fmt.Printf("    ✗ 获取失败: %s（HTTP %d）\n", commentsResult.Data.Base.Msg, commentsResult.StatusCode)
+			addError("13", fmt.Sprintf("获取失败: %s", commentsResult.Data.Base.Msg))
 		}
 	}
 	fmt.Println()
 
+	// 输出测试汇总
 	fmt.Println("========== 测试完成 ==========")
-}
-
-func getBaseURL() string {
-	v := strings.TrimSpace(os.Getenv("BASE_URL"))
-	if v == "" {
-		return defaultBaseURL
-	}
-	return strings.TrimRight(v, "/")
-}
-
-func checkServerAvailable(client *http.Client, baseURL string) bool {
-	resp, err := client.Get(baseURL + "/ping")
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	return true
-}
-
-func testRegister(client *http.Client, baseURL, username, password string) Result[RegisterResponse] {
-	body := map[string]string{
-		"username": username,
-		"password": password,
-	}
-	var result RegisterResponse
-	status, raw, err := doJSON(client, http.MethodPost, baseURL+"/api/v1/user/register", body, "", &result)
-	return Result[RegisterResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func testLogin(client *http.Client, baseURL, username, password string) Result[LoginResponse] {
-	body := map[string]string{
-		"username": username,
-		"password": password,
-	}
-	var result LoginResponse
-	status, raw, err := doJSON(client, http.MethodPost, baseURL+"/api/v1/user/login", body, "", &result)
-	return Result[LoginResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func testGetUserInfo(client *http.Client, baseURL, userID string) Result[GetUserInfoResponse] {
-	var result GetUserInfoResponse
-	u := baseURL + "/api/v1/user/info?user_id=" + url.QueryEscape(userID)
-	status, raw, err := doRequest(client, http.MethodGet, u, "", "", nil, &result)
-	return Result[GetUserInfoResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func testRefreshToken(client *http.Client, baseURL, refreshToken string) Result[RefreshTokenResponse] {
-	body := map[string]string{
-		"refresh_token": refreshToken,
-	}
-	var result RefreshTokenResponse
-	status, raw, err := doJSON(client, http.MethodPost, baseURL+"/api/v1/user/refresh", body, "", &result)
-	return Result[RefreshTokenResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen]
-}
-
-func doJSON(client *http.Client, method, url string, body any, token string, out any) (int, string, error) {
-	var reader io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return 0, "", err
-		}
-		reader = bytes.NewBuffer(b)
-	}
-	return doRequest(client, method, url, "application/json", token, reader, out)
-}
-
-func doRequest(client *http.Client, method, url, contentType, token string, body io.Reader, out any) (int, string, error) {
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		return 0, "", err
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, "", err
-	}
-	defer resp.Body.Close()
-
-	rawBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return resp.StatusCode, "", err
-	}
-	raw := string(rawBytes)
-
-	if out != nil && len(rawBytes) > 0 {
-		if err := json.Unmarshal(rawBytes, out); err != nil {
-			return resp.StatusCode, raw, fmt.Errorf("解析 JSON 失败: %w（响应体: %s）", err, truncate(raw, 200))
+	if len(errors) == 0 {
+		fmt.Println("✓ 所有测试通过！")
+	} else {
+		fmt.Printf("✗ 共 %d 个错误：\n", len(errors))
+		fmt.Println()
+		for i, e := range errors {
+			fmt.Printf("  %d. %s\n", i+1, e)
 		}
 	}
-	return resp.StatusCode, raw, nil
-}
-
-func testPublishVideo(client *http.Client, baseURL, accessToken, title, description, filePath string) Result[PublishVideoResponse] {
-	if strings.TrimSpace(accessToken) == "" {
-		return Result[PublishVideoResponse]{Err: fmt.Errorf("缺少 access_token（请先登录）")}
-	}
-
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	_ = w.WriteField("title", title)
-	_ = w.WriteField("description", description)
-
-	f, err := os.Open(filePath)
-	if err != nil {
-		return Result[PublishVideoResponse]{Err: err}
-	}
-	defer f.Close()
-
-	part, err := w.CreateFormFile("video", filepath.Base(filePath))
-	if err != nil {
-		return Result[PublishVideoResponse]{Err: err}
-	}
-	if _, err := io.Copy(part, f); err != nil {
-		return Result[PublishVideoResponse]{Err: err}
-	}
-	if err := w.Close(); err != nil {
-		return Result[PublishVideoResponse]{Err: err}
-	}
-
-	var result PublishVideoResponse
-	status, raw, err := doRequest(client, http.MethodPost, baseURL+"/api/v1/video/publish", w.FormDataContentType(), accessToken, &buf, &result)
-	return Result[PublishVideoResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func testListPublishedVideos(client *http.Client, baseURL, userID string, pageNum, pageSize int) Result[ListPublishedVideosResponse] {
-	u, err := url.Parse(baseURL + "/api/v1/video/list")
-	if err != nil {
-		return Result[ListPublishedVideosResponse]{Err: err}
-	}
-	q := u.Query()
-	q.Set("user_id", userID)
-	q.Set("page_num", strconv.Itoa(pageNum))
-	q.Set("page_size", strconv.Itoa(pageSize))
-	u.RawQuery = q.Encode()
-
-	var result ListPublishedVideosResponse
-	status, raw, err := doRequest(client, http.MethodGet, u.String(), "", "", nil, &result)
-	return Result[ListPublishedVideosResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func testSearchVideos(client *http.Client, baseURL, keywords string, pageNum, pageSize int, username string, fromDate, toDate int64, sortBy string) Result[SearchVideosResponse] {
-	u, err := url.Parse(baseURL + "/api/v1/video/search")
-	if err != nil {
-		return Result[SearchVideosResponse]{Err: err}
-	}
-	q := u.Query()
-	if strings.TrimSpace(keywords) != "" {
-		q.Set("keywords", keywords)
-	}
-	q.Set("page_num", strconv.Itoa(pageNum))
-	q.Set("page_size", strconv.Itoa(pageSize))
-	if strings.TrimSpace(username) != "" {
-		q.Set("username", username)
-	}
-	if fromDate > 0 {
-		q.Set("from_date", strconv.FormatInt(fromDate, 10))
-	}
-	if toDate > 0 {
-		q.Set("to_date", strconv.FormatInt(toDate, 10))
-	}
-	if strings.TrimSpace(sortBy) != "" {
-		q.Set("sort_by", sortBy)
-	}
-	u.RawQuery = q.Encode()
-
-	var result SearchVideosResponse
-	status, raw, err := doRequest(client, http.MethodGet, u.String(), "", "", nil, &result)
-	return Result[SearchVideosResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func testGetHotVideos(client *http.Client, baseURL string, pageNum, pageSize int) Result[GetHotVideosResponse] {
-	u, err := url.Parse(baseURL + "/api/v1/video/hot")
-	if err != nil {
-		return Result[GetHotVideosResponse]{Err: err}
-	}
-	q := u.Query()
-	q.Set("page_num", strconv.Itoa(pageNum))
-	q.Set("page_size", strconv.Itoa(pageSize))
-	u.RawQuery = q.Encode()
-
-	var result GetHotVideosResponse
-	status, raw, err := doRequest(client, http.MethodGet, u.String(), "", "", nil, &result)
-	return Result[GetHotVideosResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func testListVideoComments(client *http.Client, baseURL, videoID string, pageNum, pageSize int) Result[ListVideoCommentsResponse] {
-	u, err := url.Parse(baseURL + "/api/v1/video/comments")
-	if err != nil {
-		return Result[ListVideoCommentsResponse]{Err: err}
-	}
-	q := u.Query()
-	q.Set("video_id", videoID)
-	q.Set("page_num", strconv.Itoa(pageNum))
-	q.Set("page_size", strconv.Itoa(pageSize))
-	u.RawQuery = q.Encode()
-
-	var result ListVideoCommentsResponse
-	status, raw, err := doRequest(client, http.MethodGet, u.String(), "", "", nil, &result)
-	return Result[ListVideoCommentsResponse]{Data: result, StatusCode: status, RawBody: raw, Err: err}
-}
-
-func checkStaticAvailable(client *http.Client, baseURL, path string) (bool, int, error) {
-	u := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
-	req, err := http.NewRequest(http.MethodGet, u, nil)
-	if err != nil {
-		return false, 0, err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, 0, err
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode >= 200 && resp.StatusCode < 300, resp.StatusCode, nil
-}
-
-func prepareVideoFile() (string, func(), error) {
-	if p := strings.TrimSpace(os.Getenv("VIDEO_FILE")); p != "" {
-		if _, err := os.Stat(p); err != nil {
-			return "", nil, fmt.Errorf("VIDEO_FILE 不存在: %w", err)
-		}
-		return p, func() {}, nil
-	}
-
-	f, err := os.CreateTemp("", "fanone_test_*.mp4")
-	if err != nil {
-		return "", nil, err
-	}
-	path := f.Name()
-
-	// 写入一些随机字节，保证上传的文件非空
-	payload := bytes.Repeat([]byte("fanone-test-video\n"), 1024)
-	if _, err := f.Write(payload); err != nil {
-		_ = f.Close()
-		_ = os.Remove(path)
-		return "", nil, err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(path)
-		return "", nil, err
-	}
-
-	return path, func() { _ = os.Remove(path) }, nil
 }

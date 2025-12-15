@@ -6,8 +6,10 @@ import (
 	"log"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/hertz-contrib/cors"
 	"github.com/joho/godotenv"
 	"video-platform/biz/dal"
+	"video-platform/pkg/storage"
 	"video-platform/swagger"
 )
 
@@ -21,8 +23,12 @@ func main() {
 	dal.Init()
 
 	h := server.Default()
+	h.Use(cors.Default())
 
 	register(h)
+
+	// 挂载静态文件目录（头像、视频）
+	storage.BindStatic(h)
 
 	// 绑定 Swagger UI，访问 /swagger/index.html 查看接口文档
 	swagger.BindSwagger(h)
