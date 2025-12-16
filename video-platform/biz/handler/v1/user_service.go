@@ -224,15 +224,8 @@ func GetUserInfo(ctx context.Context, c *app.RequestContext) {
 // UploadAvatar 上传用户头像
 // @router /api/v1/user/avatar [POST]
 func UploadAvatar(ctx context.Context, c *app.RequestContext) {
-	// 从上下文获取当前用户 ID（需要认证中间件设置）
-	userIDValue, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(consts.StatusUnauthorized, &v1.UploadAvatarResponse{
-			Base: response.Unauthorized(),
-		})
-		return
-	}
-	userID := userIDValue.(uint)
+	// 获取当前用户（中间件已验证）
+	userID := c.GetUint("user_id")
 
 	// 获取上传的文件
 	fileHeader, err := c.FormFile("avatar")

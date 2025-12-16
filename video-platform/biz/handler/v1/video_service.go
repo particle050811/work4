@@ -33,14 +33,8 @@ func PublishVideo(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	userIDValue, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(consts.StatusUnauthorized, &v1.PublishVideoResponse{
-			Base: response.Unauthorized(),
-		})
-		return
-	}
-	userID := userIDValue.(uint)
+	// 获取当前登录用户（中间件已验证）
+	userID := c.GetUint("user_id")
 
 	fileHeader, err := c.FormFile("video")
 	if err != nil {

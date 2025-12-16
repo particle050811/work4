@@ -32,15 +32,8 @@ func VideoLikeAction(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	// 获取当前登录用户
-	userIDValue, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(consts.StatusUnauthorized, &v1.VideoLikeActionResponse{
-			Base: response.Unauthorized(),
-		})
-		return
-	}
-	userID := userIDValue.(uint)
+	// 获取当前登录用户（中间件已验证）
+	userID := c.GetUint("user_id")
 
 	// 校验 video_id
 	if strings.TrimSpace(req.VideoId) == "" {
@@ -242,15 +235,8 @@ func PublishComment(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	// 获取当前登录用户
-	userIDValue, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(consts.StatusUnauthorized, &v1.PublishCommentResponse{
-			Base: response.Unauthorized(),
-		})
-		return
-	}
-	userID := userIDValue.(uint)
+	// 获取当前登录用户（中间件已验证）
+	userID := c.GetUint("user_id")
 
 	// 校验 video_id
 	if strings.TrimSpace(req.VideoId) == "" {
@@ -395,15 +381,8 @@ func DeleteComment(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	// 获取当前登录用户
-	userIDValue, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(consts.StatusUnauthorized, &v1.DeleteCommentResponse{
-			Base: response.Unauthorized(),
-		})
-		return
-	}
-	userID := userIDValue.(uint)
+	// 获取当前登录用户（中间件已验证）
+	userID := c.GetUint("user_id")
 
 	// 校验 comment_id
 	if strings.TrimSpace(req.CommentId) == "" {
