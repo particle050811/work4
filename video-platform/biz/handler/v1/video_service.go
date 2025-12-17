@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"video-platform/biz/dal/model"
 	v1 "video-platform/biz/model/api/video/v1"
 	"video-platform/pkg/response"
+	"video-platform/pkg/util"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -60,7 +60,7 @@ func PublishVideo(ctx context.Context, c *app.RequestContext) {
 	filename := fmt.Sprintf("video_%d_%d%s", userID, time.Now().UnixNano(), ext)
 	savePath := filepath.Join("storage", "videos", filename)
 	if err := c.SaveUploadedFile(fileHeader, savePath); err != nil {
-		log.Printf("保存视频失败: %v", err)
+		log.Printf("[视频模块][投稿] 保存视频文件失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.PublishVideoResponse{
 			Base: response.InternalError(),
 		})
@@ -75,7 +75,7 @@ func PublishVideo(ctx context.Context, c *app.RequestContext) {
 		Description: strings.TrimSpace(req.Description),
 	}
 	if err := db.CreateVideo(store, video); err != nil {
-		log.Printf("创建视频记录失败: %v", err)
+		log.Printf("[视频模块][投稿] 创建视频记录失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.PublishVideoResponse{
 			Base: response.InternalError(),
 		})
@@ -98,13 +98,13 @@ func ListPublishedVideos(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	if strings.TrimSpace(req.UserId) == "" {
+	if req.UserId == "" {
 		c.JSON(consts.StatusBadRequest, &v1.ListPublishedVideosResponse{
 			Base: response.ParamError("user_id 不能为空"),
 		})
 		return
 	}
-	userID, err := parseUint(req.UserId)
+	userID, err := util.ParseUint(req.UserId)
 	if err != nil {
 		c.JSON(consts.StatusBadRequest, &v1.ListPublishedVideosResponse{
 			Base: response.ParamError("user_id 格式错误"),
@@ -112,12 +112,12 @@ func ListPublishedVideos(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	pageNum, pageSize, offset := normalizePage(req.PageNum, req.PageSize)
+	pageNum, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 
 	store := dal.GetStore()
 	videos, total, err := db.ListVideosByUser(store, userID, offset, pageSize)
 	if err != nil {
-		log.Printf("查询发布列表失败: %v", err)
+		log.Printf("[视频模块][发布列表] 查询发布列表失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.ListPublishedVideosResponse{
 			Base: response.InternalError(),
 		})
@@ -150,11 +150,11 @@ func SearchVideos(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	pageNum, pageSize, offset := normalizePage(req.PageNum, req.PageSize)
+	pageNum, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 	sortBy := strings.TrimSpace(strings.ToLower(req.SortBy))
 	sortByHot := sortBy == "hot"
 
-	from, to := parseUnixRange(req.FromDate, req.ToDate)
+	from, to := util.ParseUnixRange(req.FromDate, req.ToDate)
 
 	store := dal.GetStore()
 	videos, total, err := db.SearchVideos(store, db.SearchVideosParams{
@@ -165,7 +165,7 @@ func SearchVideos(ctx context.Context, c *app.RequestContext) {
 		SortByHot: sortByHot,
 	}, offset, pageSize)
 	if err != nil {
-		log.Printf("搜索视频失败: %v", err)
+		log.Printf("[视频模块][搜索视频] 搜索失败 keywords=%s username=%s: %v", req.Keywords, req.Username, err)
 		c.JSON(consts.StatusInternalServerError, &v1.SearchVideosResponse{
 			Base: response.InternalError(),
 		})
@@ -198,13 +198,13 @@ func ListVideoComments(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	if strings.TrimSpace(req.VideoId) == "" {
+	if req.VideoId == "" {
 		c.JSON(consts.StatusBadRequest, &v1.ListVideoCommentsResponse{
 			Base: response.ParamError("video_id 不能为空"),
 		})
 		return
 	}
-	videoID, err := parseUint(req.VideoId)
+	videoID, err := util.ParseUint(req.VideoId)
 	if err != nil {
 		c.JSON(consts.StatusBadRequest, &v1.ListVideoCommentsResponse{
 			Base: response.ParamError("video_id 格式错误"),
@@ -212,12 +212,12 @@ func ListVideoComments(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	_, pageSize, offset := normalizePage(req.PageNum, req.PageSize)
+	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 	store := dal.GetStore()
 
 	items, total, err := db.ListTopLevelCommentsByVideo(store, videoID, offset, pageSize)
 	if err != nil {
-		log.Printf("查询视频评论失败: %v", err)
+		log.Printf("[视频模块][视频评论列表] 查询失败 video_id=%d: %v", videoID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.ListVideoCommentsResponse{
 			Base: response.InternalError(),
 		})
@@ -257,12 +257,12 @@ func GetHotVideos(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	_, pageSize, offset := normalizePage(req.PageNum, req.PageSize)
+	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 
 	store := dal.GetStore()
 	videos, total, err := getHotVideos(ctx, store, offset, pageSize)
 	if err != nil {
-		log.Printf("获取热榜失败: %v", err)
+		log.Printf("[视频模块][热门排行榜] 获取热榜失败: %v", err)
 		c.JSON(consts.StatusInternalServerError, &v1.GetHotVideosResponse{
 			Base: response.InternalError(),
 		})
@@ -306,50 +306,6 @@ func modelToProtoVideo(v *model.Video) *v1.Video {
 	return out
 }
 
-func normalizePage(pageNum, pageSize int32) (int, int, int) {
-	pn := int(pageNum)
-	ps := int(pageSize)
-	if pn < 1 {
-		pn = 1
-	}
-	if ps <= 0 {
-		ps = 10
-	}
-	if ps > 50 {
-		ps = 50
-	}
-	return pn, ps, (pn - 1) * ps
-}
-
-func parseUint(s string) (uint, error) {
-	u64, err := strconv.ParseUint(strings.TrimSpace(s), 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return uint(u64), nil
-}
-
-func parseUnixRange(fromDate, toDate int64) (*time.Time, *time.Time) {
-	var from, to *time.Time
-	if fromDate > 0 {
-		t := unixToTime(fromDate)
-		from = &t
-	}
-	if toDate > 0 {
-		t := unixToTime(toDate)
-		to = &t
-	}
-	return from, to
-}
-
-func unixToTime(ts int64) time.Time {
-	// 兼容毫秒/秒时间戳
-	if ts > 1_000_000_000_000 {
-		return time.UnixMilli(ts)
-	}
-	return time.Unix(ts, 0)
-}
-
 func getHotVideos(ctx context.Context, store dal.StoreLike, offset, limit int) ([]model.Video, int64, error) {
 	var total int64
 	if err := store.DB().Model(&model.Video{}).Count(&total).Error; err != nil {
@@ -384,7 +340,7 @@ func getHotVideos(ctx context.Context, store dal.StoreLike, offset, limit int) (
 		if !ok {
 			continue
 		}
-		id, err := parseUint(idStr)
+		id, err := util.ParseUint(idStr)
 		if err != nil {
 			continue
 		}

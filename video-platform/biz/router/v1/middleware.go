@@ -3,8 +3,9 @@
 package v1
 
 import (
-	"github.com/cloudwego/hertz/pkg/app"
 	"video-platform/pkg/middleware"
+
+	"github.com/cloudwego/hertz/pkg/app"
 )
 
 func rootMw() []app.HandlerFunc {
@@ -128,8 +129,8 @@ func _relationMw() []app.HandlerFunc {
 }
 
 func _relationactionMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	// 关注/取关操作需要认证
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }
 
 func _followerMw() []app.HandlerFunc {

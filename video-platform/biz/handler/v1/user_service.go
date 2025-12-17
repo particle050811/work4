@@ -34,7 +34,7 @@ func Register(ctx context.Context, c *app.RequestContext) {
 	// 检查用户名是否已存在
 	exists, err := db.UserExists(store, req.Username)
 	if err != nil {
-		log.Printf("检查用户名失败: %v", err)
+		log.Printf("[用户模块][注册] 检查用户名失败 username=%s: %v", req.Username, err)
 		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
 			Base: response.InternalError(),
 		})
@@ -50,7 +50,7 @@ func Register(ctx context.Context, c *app.RequestContext) {
 	// 密码哈希
 	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
-		log.Printf("密码哈希失败: %v", err)
+		log.Printf("[用户模块][注册] 密码哈希失败 username=%s: %v", req.Username, err)
 		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
 			Base: response.InternalError(),
 		})
@@ -63,7 +63,7 @@ func Register(ctx context.Context, c *app.RequestContext) {
 		Password: hashedPassword,
 	}
 	if err := db.CreateUser(store, user); err != nil {
-		log.Printf("创建用户失败: %v", err)
+		log.Printf("[用户模块][注册] 创建用户失败 username=%s: %v", req.Username, err)
 		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
 			Base: response.InternalError(),
 		})
@@ -91,7 +91,7 @@ func Login(ctx context.Context, c *app.RequestContext) {
 	// 查找用户
 	user, err := db.GetUserByUsername(store, req.Username)
 	if err != nil {
-		log.Printf("查询用户失败: %v", err)
+		log.Printf("[用户模块][登录] 查询用户失败 username=%s: %v", req.Username, err)
 		c.JSON(consts.StatusInternalServerError, &v1.LoginResponse{
 			Base: response.InternalError(),
 		})
@@ -116,7 +116,7 @@ func Login(ctx context.Context, c *app.RequestContext) {
 	jwtMgr := auth.GetJWTManager()
 	accessToken, refreshToken, err := jwtMgr.GenerateTokenPair(user.ID, user.Username)
 	if err != nil {
-		log.Printf("生成令牌失败: %v", err)
+		log.Printf("[用户模块][登录] 生成令牌失败 user_id=%d: %v", user.ID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.LoginResponse{
 			Base: response.InternalError(),
 		})
@@ -202,7 +202,7 @@ func GetUserInfo(ctx context.Context, c *app.RequestContext) {
 
 	user, err := db.GetUserByID(store, userID)
 	if err != nil {
-		log.Printf("查询用户失败: %v", err)
+		log.Printf("[用户模块][获取用户信息] 查询用户失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.GetUserInfoResponse{
 			Base: response.InternalError(),
 		})
@@ -242,7 +242,7 @@ func UploadAvatar(ctx context.Context, c *app.RequestContext) {
 
 	// 保存文件
 	if err := c.SaveUploadedFile(fileHeader, savePath); err != nil {
-		log.Printf("保存头像失败: %v", err)
+		log.Printf("[用户模块][上传头像] 保存头像文件失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
 			Base: response.InternalError(),
 		})
@@ -254,7 +254,7 @@ func UploadAvatar(ctx context.Context, c *app.RequestContext) {
 	// 更新用户头像 URL
 	avatarURL := fmt.Sprintf("/storage/avatars/%s", filename)
 	if err := db.UpdateUserAvatar(store, userID, avatarURL); err != nil {
-		log.Printf("更新头像失败: %v", err)
+		log.Printf("[用户模块][上传头像] 更新头像 URL 失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
 			Base: response.InternalError(),
 		})
@@ -264,7 +264,7 @@ func UploadAvatar(ctx context.Context, c *app.RequestContext) {
 	// 获取更新后的用户信息
 	user, err := db.GetUserByID(store, userID)
 	if err != nil {
-		log.Printf("查询用户失败: %v", err)
+		log.Printf("[用户模块][上传头像] 查询更新后的用户信息失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
 			Base: response.InternalError(),
 		})
