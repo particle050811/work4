@@ -3,6 +3,8 @@
 package v1
 
 import (
+	"video-platform/pkg/middleware"
+
 	"github.com/cloudwego/hertz/pkg/app"
 )
 
@@ -27,8 +29,7 @@ func _userMw() []app.HandlerFunc {
 }
 
 func _uploadavatarMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }
 
 func _getuserinfoMw() []app.HandlerFunc {
@@ -72,8 +73,7 @@ func _listpublishedvideosMw() []app.HandlerFunc {
 }
 
 func _publishvideoMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }
 
 func _searchvideosMw() []app.HandlerFunc {
@@ -92,13 +92,11 @@ func _commentMw() []app.HandlerFunc {
 }
 
 func _publishcommentMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }
 
 func _deletecommentMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }
 
 func _listusercommentsMw() []app.HandlerFunc {
@@ -112,8 +110,7 @@ func _likeMw() []app.HandlerFunc {
 }
 
 func _videolikeactionMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }
 
 func _listlikedvideosMw() []app.HandlerFunc {
@@ -127,8 +124,7 @@ func _relationMw() []app.HandlerFunc {
 }
 
 func _relationactionMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }
 
 func _followerMw() []app.HandlerFunc {
