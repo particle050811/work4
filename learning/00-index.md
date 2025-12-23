@@ -13,6 +13,22 @@
 | 2025-12-16 | 事务机制与类型系统 | [07-transaction-and-type-system.md](./07-transaction-and-type-system.md) |
 | 2025-12-16 | ID 类型设计：uint vs string | [08-id-type-design.md](./08-id-type-design.md) |
 | 2025-12-16 | Go 变量声明与赋值详解 | [09-go-variable-declaration.md](./09-go-variable-declaration.md) |
+| 2025-12-23 | GORM 模型设计详解 | [10-gorm-model-design.md](./10-gorm-model-design.md) |
+
+### 10-gorm-model-design.md 内容概要
+
+| 章节 | 内容 |
+|------|------|
+| §1 | 问题背景（Follow 模型设计） |
+| §2 | TableName() 接口（作用、使用场景、为何显式定义） |
+| §3 | 联合唯一索引（语法、生成 SQL、独立 vs 联合对比） |
+| §4 | JSON 标签详解（omitempty、常用选项） |
+| §5 | GORM 标签速查（primaryKey、uniqueIndex、index 等） |
+| §6 | Follow 模型完整设计（索引说明、查询场景） |
+| §7 | 软删除机制（**gorm.DeletedAt vs time.Time 对比** ⭐ 更新 2025-12-23、为何使用、GORM 行为） |
+| §8 | 关键代码位置 |
+| §9 | 推荐阅读 |
+| §10 | 总结 |
 
 ### 09-go-variable-declaration.md 内容概要
 
@@ -126,5 +142,6 @@
 - [x] 事务机制 & 类型系统 (`07-transaction-and-type-system.md`) ✅ 2025-12-16
 - [x] ID 类型设计 (`08-id-type-design.md`) ✅ 2025-12-16
 - [x] Go 变量声明 (`09-go-variable-declaration.md`) ✅ 2025-12-16
-- [ ] Redis / 缓存应用 (`10-redis-cache.md`)
-- [ ] 社交模块 (`11-relation-module.md`)
+- [x] GORM 模型设计 (`10-gorm-model-design.md`) ✅ 2025-12-23
+- [ ] Redis / 缓存应用 (`11-redis-cache.md`)
+- [ ] 社交模块 (`12-relation-module.md`)

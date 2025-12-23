@@ -11,15 +11,14 @@ import (
 	"time"
 
 	"video-platform/biz/dal"
-	"video-platform/biz/dal/db"
 	"video-platform/biz/dal/model"
 	v1 "video-platform/biz/model/api/video/v1"
+	"video-platform/biz/service"
 	"video-platform/pkg/response"
 	"video-platform/pkg/util"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/redis/go-redis/v9"
 )
 
 // PublishVideo .
@@ -67,14 +66,15 @@ func PublishVideo(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	store := dal.GetStore()
 	video := &model.Video{
 		UserID:      userID,
 		VideoURL:    fmt.Sprintf("/storage/videos/%s", filename),
 		Title:       title,
 		Description: strings.TrimSpace(req.Description),
 	}
-	if err := db.CreateVideo(store, video); err != nil {
+
+	svc := service.NewVideoService(dal.GetStore())
+	if err := svc.CreateVideo(ctx, video); err != nil {
 		log.Printf("[视频模块][投稿] 创建视频记录失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.PublishVideoResponse{
 			Base: response.InternalError(),
@@ -112,10 +112,10 @@ func ListPublishedVideos(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	pageNum, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
+	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 
-	store := dal.GetStore()
-	videos, total, err := db.ListVideosByUser(store, userID, offset, pageSize)
+	svc := service.NewVideoService(dal.GetStore())
+	videos, total, err := svc.ListVideosByUser(ctx, userID, offset, pageSize)
 	if err != nil {
 		log.Printf("[视频模块][发布列表] 查询发布列表失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.ListPublishedVideosResponse{
@@ -136,7 +136,6 @@ func ListPublishedVideos(ctx context.Context, c *app.RequestContext) {
 			Total: total,
 		},
 	})
-	_ = pageNum // 兼容未来需要返回 page 字段的扩展（当前 proto 未包含）
 }
 
 // SearchVideos .
@@ -150,14 +149,14 @@ func SearchVideos(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	pageNum, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
+	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 	sortBy := strings.TrimSpace(strings.ToLower(req.SortBy))
 	sortByHot := sortBy == "hot"
 
 	from, to := util.ParseUnixRange(req.FromDate, req.ToDate)
 
-	store := dal.GetStore()
-	videos, total, err := db.SearchVideos(store, db.SearchVideosParams{
+	svc := service.NewVideoService(dal.GetStore())
+	videos, total, err := svc.SearchVideos(ctx, service.SearchVideosParams{
 		Keywords:  strings.TrimSpace(req.Keywords),
 		Username:  strings.TrimSpace(req.Username),
 		FromDate:  from,
@@ -184,7 +183,6 @@ func SearchVideos(ctx context.Context, c *app.RequestContext) {
 			Total: total,
 		},
 	})
-	_ = pageNum
 }
 
 // ListVideoComments .
@@ -213,9 +211,9 @@ func ListVideoComments(ctx context.Context, c *app.RequestContext) {
 	}
 
 	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
-	store := dal.GetStore()
 
-	items, total, err := db.ListTopLevelCommentsByVideo(store, videoID, offset, pageSize)
+	svc := service.NewVideoService(dal.GetStore())
+	items, total, err := svc.ListVideoComments(ctx, videoID, offset, pageSize)
 	if err != nil {
 		log.Printf("[视频模块][视频评论列表] 查询失败 video_id=%d: %v", videoID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.ListVideoCommentsResponse{
@@ -259,8 +257,8 @@ func GetHotVideos(ctx context.Context, c *app.RequestContext) {
 
 	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 
-	store := dal.GetStore()
-	videos, total, err := getHotVideos(ctx, store, offset, pageSize)
+	svc := service.NewVideoService(dal.GetStore())
+	videos, total, err := svc.GetHotVideos(ctx, offset, pageSize)
 	if err != nil {
 		log.Printf("[视频模块][热门排行榜] 获取热榜失败: %v", err)
 		c.JSON(consts.StatusInternalServerError, &v1.GetHotVideosResponse{
@@ -304,96 +302,4 @@ func modelToProtoVideo(v *model.Video) *v1.Video {
 		out.DeletedAt = v.DeletedAt.Time.Format("2006-01-02 15:04:05")
 	}
 	return out
-}
-
-func getHotVideos(ctx context.Context, store dal.StoreLike, offset, limit int) ([]model.Video, int64, error) {
-	var total int64
-	if err := store.DB().Model(&model.Video{}).Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	const (
-		key      = "fanone:video:hot:zset"
-		cacheTTL = 5 * time.Minute
-		topN     = 200
-	)
-
-	redisCli := store.Redis()
-	exists, err := redisCli.Exists(ctx, key).Result()
-	if err != nil {
-		return nil, 0, err
-	}
-	if exists == 0 {
-		if err := rebuildHotVideosZSet(ctx, store, redisCli, key, cacheTTL, topN); err != nil {
-			return nil, 0, err
-		}
-	}
-
-	zs, err := redisCli.ZRevRangeWithScores(ctx, key, int64(offset), int64(offset+limit-1)).Result()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	ids := make([]uint, 0, len(zs))
-	for _, z := range zs {
-		idStr, ok := z.Member.(string)
-		if !ok {
-			continue
-		}
-		id, err := util.ParseUint(idStr)
-		if err != nil {
-			continue
-		}
-		ids = append(ids, id)
-	}
-
-	videos, err := db.GetVideosByIDs(store, ids)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	byID := make(map[uint]model.Video, len(videos))
-	for i := range videos {
-		byID[videos[i].ID] = videos[i]
-	}
-	ordered := make([]model.Video, 0, len(ids))
-	for _, id := range ids {
-		if v, ok := byID[id]; ok {
-			ordered = append(ordered, v)
-		}
-	}
-	return ordered, total, nil
-}
-
-func rebuildHotVideosZSet(ctx context.Context, store dal.StoreLike, redisCli dal.RedisClient, key string, ttl time.Duration, topN int) error {
-	var top []model.Video
-	if err := store.DB().
-		Model(&model.Video{}).
-		Order("(like_count*3 + comment_count*2 + visit_count) desc").
-		Limit(topN).
-		Find(&top).Error; err != nil {
-		return err
-	}
-
-	zs := make([]redis.Z, 0, len(top))
-	for i := range top {
-		score := float64(top[i].LikeCount*3 + top[i].CommentCount*2 + top[i].VisitCount)
-		zs = append(zs, redis.Z{
-			Score:  score,
-			Member: fmt.Sprintf("%d", top[i].ID),
-		})
-	}
-
-	if err := redisCli.Del(ctx, key).Err(); err != nil {
-		return err
-	}
-	if len(zs) > 0 {
-		if err := redisCli.ZAdd(ctx, key, zs...).Err(); err != nil {
-			return err
-		}
-	}
-	if err := redisCli.Expire(ctx, key, ttl).Err(); err != nil {
-		return err
-	}
-	return nil
 }

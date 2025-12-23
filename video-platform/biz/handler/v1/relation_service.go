@@ -4,72 +4,254 @@ package v1
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log"
+
+	"video-platform/biz/dal"
+	"video-platform/biz/dal/model"
 	v1 "video-platform/biz/model/api/video/v1"
+	"video-platform/biz/service"
+	"video-platform/pkg/response"
+	"video-platform/pkg/util"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
-// RelationAction .
+// 关注类型常量
+const (
+	ActionTypeFollow   = int32(v1.RelationActionType_RELATION_ACTION_TYPE_FOLLOW)
+	ActionTypeUnfollow = int32(v1.RelationActionType_RELATION_ACTION_TYPE_UNFOLLOW)
+)
+
+// RelationAction 关注/取消关注
 // @router /api/v1/relation/action [POST]
 func RelationAction(ctx context.Context, c *app.RequestContext) {
-	var err error
 	var req v1.RelationActionRequest
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.RelationActionResponse{
+			Base: response.ParamError(err.Error()),
+		})
 		return
 	}
 
-	resp := new(v1.RelationActionResponse)
+	// 获取当前登录用户（中间件已验证）
+	userID := c.GetUint("user_id")
 
-	c.JSON(consts.StatusOK, resp)
+	// 校验 to_user_id
+	if req.ToUserId == "" {
+		c.JSON(consts.StatusBadRequest, &v1.RelationActionResponse{
+			Base: response.ParamError("to_user_id 不能为空"),
+		})
+		return
+	}
+
+	targetUserID, err := util.ParseUint(req.ToUserId)
+	if err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.RelationActionResponse{
+			Base: response.ParamError("to_user_id 格式错误"),
+		})
+		return
+	}
+
+	// 校验 action_type
+	actionType := req.ActionType
+	if actionType != ActionTypeFollow && actionType != ActionTypeUnfollow {
+		c.JSON(consts.StatusBadRequest, &v1.RelationActionResponse{
+			Base: response.ParamError("action_type 必须为1（关注）或2（取关）"),
+		})
+		return
+	}
+
+	svc := service.NewRelationService(dal.GetStore())
+	followAction := service.FollowActionFollow
+	if actionType == ActionTypeUnfollow {
+		followAction = service.FollowActionUnfollow
+	}
+
+	_, err = svc.FollowUser(ctx, userID, targetUserID, followAction)
+	if err != nil {
+		if errors.Is(err, service.ErrCannotFollowSelf) {
+			c.JSON(consts.StatusBadRequest, &v1.RelationActionResponse{
+				Base: response.ParamError("不能关注自己"),
+			})
+			return
+		}
+		if errors.Is(err, service.ErrUserNotFound) {
+			c.JSON(consts.StatusNotFound, &v1.RelationActionResponse{
+				Base: response.NotFound("用户不存在"),
+			})
+			return
+		}
+		log.Printf("[社交模块][关注操作] 操作失败 user_id=%d target_user_id=%d: %v", userID, targetUserID, err)
+		c.JSON(consts.StatusInternalServerError, &v1.RelationActionResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	msg := "关注成功"
+	if actionType == ActionTypeUnfollow {
+		msg = "取消关注成功"
+	}
+	c.JSON(consts.StatusOK, &v1.RelationActionResponse{
+		Base: response.Success(msg),
+	})
 }
 
-// ListFollowings .
+// ListFollowings 获取关注列表
 // @router /api/v1/relation/following/list [GET]
 func ListFollowings(ctx context.Context, c *app.RequestContext) {
-	var err error
 	var req v1.ListFollowingsRequest
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.ListFollowingsResponse{
+			Base: response.ParamError(err.Error()),
+		})
 		return
 	}
 
-	resp := new(v1.ListFollowingsResponse)
+	// 校验 user_id
+	if req.UserId == "" {
+		c.JSON(consts.StatusBadRequest, &v1.ListFollowingsResponse{
+			Base: response.ParamError("user_id 不能为空"),
+		})
+		return
+	}
+	userID, err := util.ParseUint(req.UserId)
+	if err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.ListFollowingsResponse{
+			Base: response.ParamError("user_id 格式错误"),
+		})
+		return
+	}
 
-	c.JSON(consts.StatusOK, resp)
+	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
+
+	svc := service.NewRelationService(dal.GetStore())
+	users, total, err := svc.ListFollowings(ctx, userID, offset, pageSize)
+	if err != nil {
+		log.Printf("[社交模块][关注列表] 查询关注列表失败 user_id=%d: %v", userID, err)
+		c.JSON(consts.StatusInternalServerError, &v1.ListFollowingsResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	items := make([]*v1.SocialProfile, 0, len(users))
+	for i := range users {
+		items = append(items, modelToSocialProfile(&users[i]))
+	}
+
+	c.JSON(consts.StatusOK, &v1.ListFollowingsResponse{
+		Base: response.Success(),
+		Data: &v1.SocialListWithTotal{
+			Items: items,
+			Total: total,
+		},
+	})
 }
 
-// ListFollowers .
+// ListFollowers 获取粉丝列表
 // @router /api/v1/relation/follower/list [GET]
 func ListFollowers(ctx context.Context, c *app.RequestContext) {
-	var err error
 	var req v1.ListFollowersRequest
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.ListFollowersResponse{
+			Base: response.ParamError(err.Error()),
+		})
 		return
 	}
 
-	resp := new(v1.ListFollowersResponse)
+	// 校验 user_id
+	if req.UserId == "" {
+		c.JSON(consts.StatusBadRequest, &v1.ListFollowersResponse{
+			Base: response.ParamError("user_id 不能为空"),
+		})
+		return
+	}
+	userID, err := util.ParseUint(req.UserId)
+	if err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.ListFollowersResponse{
+			Base: response.ParamError("user_id 格式错误"),
+		})
+		return
+	}
 
-	c.JSON(consts.StatusOK, resp)
+	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
+
+	svc := service.NewRelationService(dal.GetStore())
+	users, total, err := svc.ListFollowers(ctx, userID, offset, pageSize)
+	if err != nil {
+		log.Printf("[社交模块][粉丝列表] 查询粉丝列表失败 user_id=%d: %v", userID, err)
+		c.JSON(consts.StatusInternalServerError, &v1.ListFollowersResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	items := make([]*v1.SocialProfile, 0, len(users))
+	for i := range users {
+		items = append(items, modelToSocialProfile(&users[i]))
+	}
+
+	c.JSON(consts.StatusOK, &v1.ListFollowersResponse{
+		Base: response.Success(),
+		Data: &v1.SocialListWithTotal{
+			Items: items,
+			Total: total,
+		},
+	})
 }
 
-// ListFriends .
+// ListFriends 获取好友列表（互相关注）
 // @router /api/v1/relation/friend/list [GET]
 func ListFriends(ctx context.Context, c *app.RequestContext) {
-	var err error
 	var req v1.ListFriendsRequest
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
+	if err := c.BindAndValidate(&req); err != nil {
+		c.JSON(consts.StatusBadRequest, &v1.ListFriendsResponse{
+			Base: response.ParamError(err.Error()),
+		})
 		return
 	}
 
-	resp := new(v1.ListFriendsResponse)
+	// 好友列表只能查自己的，从 JWT 中获取 user_id
+	userID := c.GetUint("user_id")
 
-	c.JSON(consts.StatusOK, resp)
+	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
+
+	svc := service.NewRelationService(dal.GetStore())
+	users, total, err := svc.ListFriends(ctx, userID, offset, pageSize)
+	if err != nil {
+		log.Printf("[社交模块][好友列表] 查询好友列表失败 user_id=%d: %v", userID, err)
+		c.JSON(consts.StatusInternalServerError, &v1.ListFriendsResponse{
+			Base: response.InternalError(),
+		})
+		return
+	}
+
+	items := make([]*v1.SocialProfile, 0, len(users))
+	for i := range users {
+		items = append(items, modelToSocialProfile(&users[i]))
+	}
+
+	c.JSON(consts.StatusOK, &v1.ListFriendsResponse{
+		Base: response.Success(),
+		Data: &v1.SocialListWithTotal{
+			Items: items,
+			Total: total,
+		},
+	})
+}
+
+// modelToSocialProfile 将用户模型转换为社交资料
+func modelToSocialProfile(user *model.User) *v1.SocialProfile {
+	if user == nil {
+		return nil
+	}
+	return &v1.SocialProfile{
+		Id:        fmt.Sprintf("%d", user.ID),
+		Username:  user.Username,
+		AvatarUrl: user.AvatarURL,
+	}
 }

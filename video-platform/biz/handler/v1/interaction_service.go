@@ -4,22 +4,20 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"strings"
 
 	"video-platform/biz/dal"
-	"video-platform/biz/dal/db"
 	"video-platform/biz/dal/model"
 	v1 "video-platform/biz/model/api/video/v1"
+	"video-platform/biz/service"
 	"video-platform/pkg/response"
 	"video-platform/pkg/util"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
-
-const hotVideosKey = "fanone:video:hot:zset"
 
 // 点赞操作类型常量（基于 Proto 枚举定义）
 const (
@@ -65,86 +63,25 @@ func VideoLikeAction(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	store := dal.GetStore()
+	svc := service.NewInteractionService(dal.GetStore())
+	likeAction := service.LikeActionAdd
+	if actionType == ActionTypeUnlike {
+		likeAction = service.LikeActionCancel
+	}
 
-	// 检查视频是否存在
-	video, err := db.GetVideoByID(store, videoID)
+	_, err = svc.LikeVideo(ctx, userID, videoID, likeAction)
 	if err != nil {
-		log.Printf("[互动模块][点赞操作] 查询目标视频失败 video_id=%d: %v", videoID, err)
+		if errors.Is(err, service.ErrVideoNotFound) {
+			c.JSON(consts.StatusNotFound, &v1.VideoLikeActionResponse{
+				Base: response.NotFound("视频不存在"),
+			})
+			return
+		}
+		log.Printf("[互动模块][点赞操作] 操作失败 video_id=%d user_id=%d: %v", videoID, userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.VideoLikeActionResponse{
 			Base: response.InternalError(),
 		})
 		return
-	}
-	if video == nil {
-		c.JSON(consts.StatusNotFound, &v1.VideoLikeActionResponse{
-			Base: response.NotFound("视频不存在"),
-		})
-		return
-	}
-
-	// 事务处理点赞/取消点赞
-	var likeDelta int64
-	err = store.WithTx(func(txStore *dal.Store) error {
-		// 查询点赞记录（包含软删除）
-		like, err := db.GetVideoLikeUnscoped(txStore, userID, videoID)
-		if err != nil {
-			return err
-		}
-
-		if actionType == ActionTypeLike { // 点赞
-			if like == nil {
-				// 不存在，创建新记录
-				newLike := &model.VideoLike{
-					UserID:  userID,
-					VideoID: videoID,
-				}
-				if err := db.CreateVideoLike(txStore, newLike); err != nil {
-					return err
-				}
-				likeDelta = 1
-			} else if like.DeletedAt.Valid {
-				// 已软删除，恢复记录
-				if err := db.RestoreVideoLike(txStore, like.ID); err != nil {
-					return err
-				}
-				likeDelta = 1
-			}
-			// 已点赞则幂等返回，likeDelta = 0
-		} else { // 取消点赞
-			if like != nil && !like.DeletedAt.Valid {
-				// 存在且未删除，软删除
-				if err := db.SoftDeleteVideoLike(txStore, like.ID); err != nil {
-					return err
-				}
-				likeDelta = -1
-			}
-			// 不存在或已删除则幂等返回，likeDelta = 0
-		}
-
-		// 更新视频点赞数
-		if likeDelta != 0 {
-			if err := db.IncreaseVideoLikeCount(txStore, videoID, likeDelta); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		log.Printf("[互动模块][点赞操作] 事务执行失败 video_id=%d user_id=%d: %v", videoID, userID, err)
-		c.JSON(consts.StatusInternalServerError, &v1.VideoLikeActionResponse{
-			Base: response.InternalError(),
-		})
-		return
-	}
-
-	// 更新 Redis 热榜缓存（失败不阻塞主流程）
-	if likeDelta != 0 {
-		scoreDelta := float64(likeDelta * 3) // 点赞权重为 3
-		if err := store.Redis().ZIncrBy(ctx, hotVideosKey, scoreDelta, fmt.Sprintf("%d", videoID)).Err(); err != nil {
-			log.Printf("[互动模块][点赞操作] 更新热榜缓存失败 video_id=%d: %v", videoID, err)
-		}
 	}
 
 	msg := "点赞成功"
@@ -184,10 +121,8 @@ func ListLikedVideos(ctx context.Context, c *app.RequestContext) {
 
 	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 
-	store := dal.GetStore()
-
-	// 查询点赞记录获取视频 ID 列表
-	videoIDs, total, err := db.ListVideoLikesByUser(store, userID, offset, pageSize)
+	svc := service.NewInteractionService(dal.GetStore())
+	videos, total, err := svc.ListLikedVideos(ctx, userID, offset, pageSize)
 	if err != nil {
 		log.Printf("[互动模块][点赞列表] 查询点赞列表失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.ListLikedVideosResponse{
@@ -196,29 +131,9 @@ func ListLikedVideos(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	// 批量查询视频详情
-	var items []*v1.Video
-	if len(videoIDs) > 0 {
-		videos, err := db.GetVideosByIDs(store, videoIDs)
-		if err != nil {
-			log.Printf("[互动模块][点赞列表] 查询视频详情失败: %v", err)
-			c.JSON(consts.StatusInternalServerError, &v1.ListLikedVideosResponse{
-				Base: response.InternalError(),
-			})
-			return
-		}
-
-		// 按点赞顺序排列
-		videoMap := make(map[uint]model.Video, len(videos))
-		for _, v := range videos {
-			videoMap[v.ID] = v
-		}
-		items = make([]*v1.Video, 0, len(videoIDs))
-		for _, id := range videoIDs {
-			if v, ok := videoMap[id]; ok {
-				items = append(items, modelToProtoVideo(&v))
-			}
-		}
+	items := make([]*v1.Video, 0, len(videos))
+	for i := range videos {
+		items = append(items, modelToProtoVideo(&videos[i]))
 	}
 
 	c.JSON(consts.StatusOK, &v1.ListLikedVideosResponse{
@@ -259,63 +174,32 @@ func PublishComment(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	// 校验 content
-	content := strings.TrimSpace(req.Content)
-	if content == "" {
-		c.JSON(consts.StatusBadRequest, &v1.PublishCommentResponse{
-			Base: response.ParamError("评论内容不能为空"),
-		})
-		return
-	}
-	if len(content) > 1000 {
-		c.JSON(consts.StatusBadRequest, &v1.PublishCommentResponse{
-			Base: response.ParamError("评论内容不能超过 1000 字符"),
-		})
-		return
-	}
-
-	store := dal.GetStore()
-
-	// 检查视频是否存在
-	video, err := db.GetVideoByID(store, videoID)
+	svc := service.NewInteractionService(dal.GetStore())
+	err = svc.PublishComment(ctx, userID, videoID, req.Content)
 	if err != nil {
-		log.Printf("[互动模块][发布评论] 查询视频失败 video_id=%d: %v", videoID, err)
+		if errors.Is(err, service.ErrCommentEmpty) {
+			c.JSON(consts.StatusBadRequest, &v1.PublishCommentResponse{
+				Base: response.ParamError("评论内容不能为空"),
+			})
+			return
+		}
+		if errors.Is(err, service.ErrCommentTooLong) {
+			c.JSON(consts.StatusBadRequest, &v1.PublishCommentResponse{
+				Base: response.ParamError("评论内容不能超过 1000 字符"),
+			})
+			return
+		}
+		if errors.Is(err, service.ErrVideoNotFound) {
+			c.JSON(consts.StatusNotFound, &v1.PublishCommentResponse{
+				Base: response.NotFound("视频不存在"),
+			})
+			return
+		}
+		log.Printf("[互动模块][发布评论] 发布失败 video_id=%d user_id=%d: %v", videoID, userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.PublishCommentResponse{
 			Base: response.InternalError(),
 		})
 		return
-	}
-	if video == nil {
-		c.JSON(consts.StatusNotFound, &v1.PublishCommentResponse{
-			Base: response.NotFound("视频不存在"),
-		})
-		return
-	}
-
-	// 事务：创建评论 + 更新视频评论数
-	err = store.WithTx(func(txStore *dal.Store) error {
-		comment := &model.Comment{
-			UserID:  userID,
-			VideoID: videoID,
-			Content: content,
-		}
-		if err := db.CreateComment(txStore, comment); err != nil {
-			return err
-		}
-		return db.IncreaseVideoCommentCount(txStore, videoID, 1)
-	})
-
-	if err != nil {
-		log.Printf("[互动模块][发布评论] 事务执行失败 video_id=%d user_id=%d: %v", videoID, userID, err)
-		c.JSON(consts.StatusInternalServerError, &v1.PublishCommentResponse{
-			Base: response.InternalError(),
-		})
-		return
-	}
-
-	// 更新 Redis 热榜缓存（评论权重为 2）
-	if err := store.Redis().ZIncrBy(ctx, hotVideosKey, 2.0, fmt.Sprintf("%d", videoID)).Err(); err != nil {
-		log.Printf("[互动模块][发布评论] 更新热榜缓存失败 video_id=%d: %v", videoID, err)
 	}
 
 	c.JSON(consts.StatusOK, &v1.PublishCommentResponse{
@@ -351,9 +235,8 @@ func ListUserComments(ctx context.Context, c *app.RequestContext) {
 
 	_, pageSize, offset := util.NormalizePage(req.PageNum, req.PageSize)
 
-	store := dal.GetStore()
-
-	comments, total, err := db.ListCommentsByUser(store, userID, offset, pageSize)
+	svc := service.NewInteractionService(dal.GetStore())
+	comments, total, err := svc.ListUserComments(ctx, userID, offset, pageSize)
 	if err != nil {
 		log.Printf("[互动模块][评论列表] 查询评论列表失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.ListUserCommentsResponse{
@@ -405,53 +288,26 @@ func DeleteComment(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	store := dal.GetStore()
-
-	// 查询评论
-	comment, err := db.GetCommentByID(store, commentID)
+	svc := service.NewInteractionService(dal.GetStore())
+	err = svc.DeleteComment(ctx, userID, commentID)
 	if err != nil {
-		log.Printf("[互动模块][删除评论] 查询评论失败 comment_id=%d: %v", commentID, err)
-		c.JSON(consts.StatusInternalServerError, &v1.DeleteCommentResponse{
-			Base: response.InternalError(),
-		})
-		return
-	}
-	if comment == nil {
-		c.JSON(consts.StatusNotFound, &v1.DeleteCommentResponse{
-			Base: response.NotFound("评论不存在"),
-		})
-		return
-	}
-
-	// 权限校验：只能删除自己的评论
-	if comment.UserID != userID {
-		c.JSON(consts.StatusForbidden, &v1.DeleteCommentResponse{
-			Base: response.Forbidden("无权删除他人评论"),
-		})
-		return
-	}
-
-	videoID := comment.VideoID
-
-	// 事务：软删除评论 + 更新视频评论数
-	err = store.WithTx(func(txStore *dal.Store) error {
-		if err := txStore.DB().Delete(&model.Comment{}, commentID).Error; err != nil {
-			return err
+		if errors.Is(err, service.ErrCommentNotFound) {
+			c.JSON(consts.StatusNotFound, &v1.DeleteCommentResponse{
+				Base: response.NotFound("评论不存在"),
+			})
+			return
 		}
-		return db.IncreaseVideoCommentCount(txStore, videoID, -1)
-	})
-
-	if err != nil {
-		log.Printf("[互动模块][删除评论] 事务执行失败 comment_id=%d user_id=%d: %v", commentID, userID, err)
+		if errors.Is(err, service.ErrNoPermission) {
+			c.JSON(consts.StatusForbidden, &v1.DeleteCommentResponse{
+				Base: response.Forbidden("无权删除他人评论"),
+			})
+			return
+		}
+		log.Printf("[互动模块][删除评论] 删除失败 comment_id=%d user_id=%d: %v", commentID, userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.DeleteCommentResponse{
 			Base: response.InternalError(),
 		})
 		return
-	}
-
-	// 更新 Redis 热榜缓存（评论权重为 -2）
-	if err := store.Redis().ZIncrBy(ctx, hotVideosKey, -2.0, fmt.Sprintf("%d", videoID)).Err(); err != nil {
-		log.Printf("[互动模块][删除评论] 更新热榜缓存失败 video_id=%d: %v", videoID, err)
 	}
 
 	c.JSON(consts.StatusOK, &v1.DeleteCommentResponse{

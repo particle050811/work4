@@ -4,14 +4,14 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
 	"video-platform/biz/dal"
-	"video-platform/biz/dal/db"
 	"video-platform/biz/dal/model"
 	v1 "video-platform/biz/model/api/video/v1"
-	"video-platform/pkg/auth"
+	"video-platform/biz/service"
 	"video-platform/pkg/response"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -29,41 +29,16 @@ func Register(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	store := dal.GetStore()
-
-	// 检查用户名是否已存在
-	exists, err := db.UserExists(store, req.Username)
+	svc := service.NewUserService(dal.GetStore())
+	_, err := svc.Register(ctx, req.Username, req.Password)
 	if err != nil {
-		log.Printf("[用户模块][注册] 检查用户名失败 username=%s: %v", req.Username, err)
-		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
-			Base: response.InternalError(),
-		})
-		return
-	}
-	if exists {
-		c.JSON(consts.StatusOK, &v1.RegisterResponse{
-			Base: response.Error(response.CodeUserExists),
-		})
-		return
-	}
-
-	// 密码哈希
-	hashedPassword, err := auth.HashPassword(req.Password)
-	if err != nil {
-		log.Printf("[用户模块][注册] 密码哈希失败 username=%s: %v", req.Username, err)
-		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
-			Base: response.InternalError(),
-		})
-		return
-	}
-
-	// 创建用户
-	user := &model.User{
-		Username: req.Username,
-		Password: hashedPassword,
-	}
-	if err := db.CreateUser(store, user); err != nil {
-		log.Printf("[用户模块][注册] 创建用户失败 username=%s: %v", req.Username, err)
+		if errors.Is(err, service.ErrUserExists) {
+			c.JSON(consts.StatusOK, &v1.RegisterResponse{
+				Base: response.Error(response.CodeUserExists),
+			})
+			return
+		}
+		log.Printf("[用户模块][注册] 注册失败 username=%s: %v", req.Username, err)
 		c.JSON(consts.StatusInternalServerError, &v1.RegisterResponse{
 			Base: response.InternalError(),
 		})
@@ -86,37 +61,22 @@ func Login(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	store := dal.GetStore()
-
-	// 查找用户
-	user, err := db.GetUserByUsername(store, req.Username)
+	svc := service.NewUserService(dal.GetStore())
+	result, err := svc.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		log.Printf("[用户模块][登录] 查询用户失败 username=%s: %v", req.Username, err)
-		c.JSON(consts.StatusInternalServerError, &v1.LoginResponse{
-			Base: response.InternalError(),
-		})
-		return
-	}
-	if user == nil {
-		c.JSON(consts.StatusOK, &v1.LoginResponse{
-			Base: response.Error(response.CodeUserNotFound),
-		})
-		return
-	}
-
-	// 验证密码
-	if !auth.CheckPassword(req.Password, user.Password) {
-		c.JSON(consts.StatusOK, &v1.LoginResponse{
-			Base: response.Error(response.CodePasswordWrong),
-		})
-		return
-	}
-
-	// 生成 JWT Token 对
-	jwtMgr := auth.GetJWTManager()
-	accessToken, refreshToken, err := jwtMgr.GenerateTokenPair(user.ID, user.Username)
-	if err != nil {
-		log.Printf("[用户模块][登录] 生成令牌失败 user_id=%d: %v", user.ID, err)
+		if errors.Is(err, service.ErrUserNotFound) {
+			c.JSON(consts.StatusOK, &v1.LoginResponse{
+				Base: response.Error(response.CodeUserNotFound),
+			})
+			return
+		}
+		if errors.Is(err, service.ErrPasswordWrong) {
+			c.JSON(consts.StatusOK, &v1.LoginResponse{
+				Base: response.Error(response.CodePasswordWrong),
+			})
+			return
+		}
+		log.Printf("[用户模块][登录] 登录失败 username=%s: %v", req.Username, err)
 		c.JSON(consts.StatusInternalServerError, &v1.LoginResponse{
 			Base: response.InternalError(),
 		})
@@ -125,9 +85,9 @@ func Login(ctx context.Context, c *app.RequestContext) {
 
 	c.JSON(consts.StatusOK, &v1.LoginResponse{
 		Base:         response.Success("登录成功"),
-		Data:         modelToProtoUser(user),
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		Data:         modelToProtoUser(result.User),
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
 	})
 }
 
@@ -149,10 +109,10 @@ func RefreshToken(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	jwtMgr := auth.GetJWTManager()
-	newAccessToken, newRefreshToken, err := jwtMgr.RefreshTokens(req.RefreshToken)
+	svc := service.NewUserService(dal.GetStore())
+	result, err := svc.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
-		if err == auth.ErrTokenExpired {
+		if errors.Is(err, service.ErrTokenExpired) {
 			c.JSON(consts.StatusOK, &v1.RefreshTokenResponse{
 				Base: response.Error(response.CodeTokenExpired),
 			})
@@ -166,8 +126,8 @@ func RefreshToken(ctx context.Context, c *app.RequestContext) {
 
 	c.JSON(consts.StatusOK, &v1.RefreshTokenResponse{
 		Base:         response.Success("刷新成功"),
-		AccessToken:  newAccessToken,
-		RefreshToken: newRefreshToken,
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
 	})
 }
 
@@ -189,8 +149,6 @@ func GetUserInfo(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	store := dal.GetStore()
-
 	// 将 user_id 转换为 uint
 	var userID uint
 	if _, err := fmt.Sscanf(req.UserId, "%d", &userID); err != nil {
@@ -200,17 +158,18 @@ func GetUserInfo(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	user, err := db.GetUserByID(store, userID)
+	svc := service.NewUserService(dal.GetStore())
+	user, err := svc.GetUserByID(ctx, userID)
 	if err != nil {
+		if errors.Is(err, service.ErrUserNotFound) {
+			c.JSON(consts.StatusOK, &v1.GetUserInfoResponse{
+				Base: response.Error(response.CodeUserNotFound),
+			})
+			return
+		}
 		log.Printf("[用户模块][获取用户信息] 查询用户失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.GetUserInfoResponse{
 			Base: response.InternalError(),
-		})
-		return
-	}
-	if user == nil {
-		c.JSON(consts.StatusOK, &v1.GetUserInfoResponse{
-			Base: response.Error(response.CodeUserNotFound),
 		})
 		return
 	}
@@ -249,22 +208,12 @@ func UploadAvatar(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	store := dal.GetStore()
-
 	// 更新用户头像 URL
 	avatarURL := fmt.Sprintf("/storage/avatars/%s", filename)
-	if err := db.UpdateUserAvatar(store, userID, avatarURL); err != nil {
-		log.Printf("[用户模块][上传头像] 更新头像 URL 失败 user_id=%d: %v", userID, err)
-		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
-			Base: response.InternalError(),
-		})
-		return
-	}
-
-	// 获取更新后的用户信息
-	user, err := db.GetUserByID(store, userID)
+	svc := service.NewUserService(dal.GetStore())
+	user, err := svc.UpdateAvatar(ctx, userID, avatarURL)
 	if err != nil {
-		log.Printf("[用户模块][上传头像] 查询更新后的用户信息失败 user_id=%d: %v", userID, err)
+		log.Printf("[用户模块][上传头像] 更新头像失败 user_id=%d: %v", userID, err)
 		c.JSON(consts.StatusInternalServerError, &v1.UploadAvatarResponse{
 			Base: response.InternalError(),
 		})
