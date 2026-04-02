@@ -41,7 +41,7 @@
 
 ### 4. 补齐 Docker 交付
 
-- [ ] 新增 `Dockerfile`
+- [x] 新增 `Dockerfile`
   - 目标：支持 `docker build` 和单容器运行
   - 需要说明：
     - `DB_DSN`
@@ -50,7 +50,7 @@
     - `REDIS_DB`
     - `JWT_SECRET`
 
-- [ ] 补充运行说明
+- [x] 补充运行说明
   - 建议写入 README
   - 至少包含：
     - 本地启动

@@ -4,6 +4,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/hertz-contrib/cors"
@@ -22,7 +23,12 @@ func main() {
 	// 初始化数据访问层（MySQL + Redis）
 	dal.Init()
 
-	h := server.Default()
+	port := os.Getenv("SERVER_PORT")
+	if port == "" {
+		port = "8888"
+	}
+
+	h := server.Default(server.WithHostPorts(":" + port))
 	h.Use(cors.Default())
 
 	register(h)
@@ -33,5 +39,6 @@ func main() {
 	// 绑定 Swagger UI，访问 /swagger/index.html 查看接口文档
 	swagger.BindSwagger(h)
 
+	log.Printf("服务启动中，监听端口: %s", port)
 	h.Spin()
 }
