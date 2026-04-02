@@ -3,15 +3,15 @@
 
 openapi: 3.0.3
 info:
-    title: InteractionService API
+    title: InteractionHandler API
     version: 3.0.3
 paths:
     /api/v1/interaction/comment:
         post:
             tags:
-                - InteractionService
+                - InteractionHandler
             description: 评论相关
-            operationId: InteractionService_PublishComment
+            operationId: InteractionHandler_PublishComment
             requestBody:
                 content:
                     application/json:
@@ -21,8 +21,8 @@ paths:
     /api/v1/interaction/comment/delete:
         post:
             tags:
-                - InteractionService
-            operationId: InteractionService_DeleteComment
+                - InteractionHandler
+            operationId: InteractionHandler_DeleteComment
             requestBody:
                 description: |-
                     DeleteCommentRequest: 删除评论
@@ -36,8 +36,8 @@ paths:
     /api/v1/interaction/comment/list:
         get:
             tags:
-                - InteractionService
-            operationId: InteractionService_ListUserComments
+                - InteractionHandler
+            operationId: InteractionHandler_ListUserComments
             parameters:
                 - name: user_id
                   in: query
@@ -57,9 +57,9 @@ paths:
     /api/v1/interaction/like:
         post:
             tags:
-                - InteractionService
+                - InteractionHandler
             description: 视频点赞（未来扩展：CommentLikeAction）
-            operationId: InteractionService_VideoLikeAction
+            operationId: InteractionHandler_VideoLikeAction
             requestBody:
                 description: |-
                     VideoLikeActionRequest: 对视频点赞/取消点赞
@@ -72,8 +72,8 @@ paths:
     /api/v1/interaction/like/list:
         get:
             tags:
-                - InteractionService
-            operationId: InteractionService_ListLikedVideos
+                - InteractionHandler
+            operationId: InteractionHandler_ListLikedVideos
             parameters:
                 - name: user_id
                   in: query
@@ -113,4 +113,4 @@ components:
                     type: integer
                     format: int32
 tags:
-    - name: InteractionService
+    - name: InteractionHandler

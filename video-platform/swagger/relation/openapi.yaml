@@ -3,14 +3,14 @@
 
 openapi: 3.0.3
 info:
-    title: RelationService API
+    title: RelationHandler API
     version: 3.0.3
 paths:
     /api/v1/relation/action:
         post:
             tags:
-                - RelationService
-            operationId: RelationService_RelationAction
+                - RelationHandler
+            operationId: RelationHandler_RelationAction
             requestBody:
                 content:
                     application/json:
@@ -20,8 +20,8 @@ paths:
     /api/v1/relation/follower/list:
         get:
             tags:
-                - RelationService
-            operationId: RelationService_ListFollowers
+                - RelationHandler
+            operationId: RelationHandler_ListFollowers
             parameters:
                 - name: user_id
                   in: query
@@ -41,8 +41,8 @@ paths:
     /api/v1/relation/following/list:
         get:
             tags:
-                - RelationService
-            operationId: RelationService_ListFollowings
+                - RelationHandler
+            operationId: RelationHandler_ListFollowings
             parameters:
                 - name: user_id
                   in: query
@@ -62,8 +62,8 @@ paths:
     /api/v1/relation/friend/list:
         get:
             tags:
-                - RelationService
-            operationId: RelationService_ListFriends
+                - RelationHandler
+            operationId: RelationHandler_ListFriends
             parameters:
                 - name: page_num
                   in: query
@@ -87,4 +87,4 @@ components:
                     type: integer
                     format: int32
 tags:
-    - name: RelationService
+    - name: RelationHandler

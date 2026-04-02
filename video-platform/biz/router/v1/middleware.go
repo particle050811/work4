@@ -153,6 +153,5 @@ func _friendMw() []app.HandlerFunc {
 }
 
 func _listfriendsMw() []app.HandlerFunc {
-	// your code...
-	return nil
+	return []app.HandlerFunc{middleware.AuthMiddleware()}
 }

@@ -3,14 +3,14 @@
 
 openapi: 3.0.3
 info:
-    title: VideoService API
+    title: VideoHandler API
     version: 3.0.3
 paths:
     /api/v1/video/comments:
         get:
             tags:
-                - VideoService
-            operationId: VideoService_ListVideoComments
+                - VideoHandler
+            operationId: VideoHandler_ListVideoComments
             parameters:
                 - name: video_id
                   in: query
@@ -30,8 +30,8 @@ paths:
     /api/v1/video/hot:
         get:
             tags:
-                - VideoService
-            operationId: VideoService_GetHotVideos
+                - VideoHandler
+            operationId: VideoHandler_GetHotVideos
             parameters:
                 - name: page_num
                   in: query
@@ -47,8 +47,8 @@ paths:
     /api/v1/video/list:
         get:
             tags:
-                - VideoService
-            operationId: VideoService_ListPublishedVideos
+                - VideoHandler
+            operationId: VideoHandler_ListPublishedVideos
             parameters:
                 - name: user_id
                   in: query
@@ -68,8 +68,8 @@ paths:
     /api/v1/video/publish:
         post:
             tags:
-                - VideoService
-            operationId: VideoService_PublishVideo
+                - VideoHandler
+            operationId: VideoHandler_PublishVideo
             requestBody:
                 description: |-
                     PublishVideoRequest: 视频文件通过 multipart/form-data 上传
@@ -85,8 +85,8 @@ paths:
     /api/v1/video/search:
         get:
             tags:
-                - VideoService
-            operationId: VideoService_SearchVideos
+                - VideoHandler
+            operationId: VideoHandler_SearchVideos
             parameters:
                 - name: keywords
                   in: query
@@ -129,4 +129,4 @@ components:
                 description:
                     type: string
 tags:
-    - name: VideoService
+    - name: VideoHandler

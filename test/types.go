@@ -144,6 +144,38 @@ type DeleteCommentResponse struct {
 	Base BaseResponse `json:"base"`
 }
 
+// ====== 社交模块类型 ======
+
+type SocialProfile struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+type SocialListWithTotal struct {
+	Items []SocialProfile `json:"items"`
+	Total int64           `json:"total"`
+}
+
+type RelationActionResponse struct {
+	Base BaseResponse `json:"base"`
+}
+
+type ListFollowingsResponse struct {
+	Base BaseResponse        `json:"base"`
+	Data SocialListWithTotal `json:"data"`
+}
+
+type ListFollowersResponse struct {
+	Base BaseResponse        `json:"base"`
+	Data SocialListWithTotal `json:"data"`
+}
+
+type ListFriendsResponse struct {
+	Base BaseResponse        `json:"base"`
+	Data SocialListWithTotal `json:"data"`
+}
+
 // 请求结果封装，包含错误信息
 type Result[T any] struct {
 	Data       T

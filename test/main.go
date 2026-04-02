@@ -19,7 +19,12 @@ func main() {
 	fmt.Println()
 
 	baseURL := getBaseURL()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			Proxy: nil, // 禁用代理，避免本地请求被拦截
+		},
+	}
 
 	// 先检查服务是否可用
 	fmt.Println("【0】检查服务连接...")
@@ -31,22 +36,20 @@ func main() {
 	fmt.Println("    ✓ 服务连接正常")
 	fmt.Println()
 
-	// 生成唯一用户名避免冲突
-	username := fmt.Sprintf("testuser_%d", time.Now().Unix())
+	fmt.Println("【0.5】加载已存在测试账号（保留历史数据）")
+	username := "e2e_main_user"
 	password := "123456"
-
-	// 1. 测试注册
-	fmt.Println("【1】测试用户注册")
-	registerResult := testRegister(client, baseURL, username, password)
-	if registerResult.Err != nil {
-		fmt.Printf("    ✗ 请求失败: %v\n", registerResult.Err)
-		addError("1", fmt.Sprintf("请求失败: %v", registerResult.Err))
-	} else if registerResult.Data.Base.Code == 0 {
-		fmt.Printf("    ✓ 注册成功: %s\n", registerResult.Data.Base.Msg)
-	} else {
-		fmt.Printf("    ✗ 注册失败: %s（HTTP %d）\n", registerResult.Data.Base.Msg, registerResult.StatusCode)
-		addError("1", fmt.Sprintf("注册失败: %s", registerResult.Data.Base.Msg))
+	seedUser, err := loginSeedUser(client, baseURL, username, password)
+	if err != nil {
+		fmt.Printf("    ✗ 加载失败: %v\n", err)
+		os.Exit(1)
 	}
+	fmt.Printf("    ✓ 已加载测试账号: %s\n", username)
+	fmt.Println()
+
+	// 1. 测试账号检查
+	fmt.Println("【1】测试账号检查")
+	fmt.Printf("    ✓ 使用已插入测试账号: %s\n", seedUser.Username)
 	fmt.Println()
 
 	// 2. 测试重复注册
@@ -65,20 +68,23 @@ func main() {
 
 	// 3. 测试登录
 	fmt.Println("【3】测试用户登录")
-	loginResult := testLogin(client, baseURL, username, password)
-	if loginResult.Err != nil {
-		fmt.Printf("    ✗ 请求失败: %v\n", loginResult.Err)
-		addError("3", fmt.Sprintf("请求失败: %v", loginResult.Err))
-	} else if loginResult.Data.Base.Code == 0 {
-		fmt.Printf("    ✓ 登录成功\n")
-		fmt.Printf("    - 用户ID: %s\n", loginResult.Data.Data.ID)
-		fmt.Printf("    - 用户名: %s\n", loginResult.Data.Data.Username)
-		fmt.Printf("    - AccessToken: %s...\n", truncate(loginResult.Data.AccessToken, 50))
-		fmt.Printf("    - RefreshToken: %s...\n", truncate(loginResult.Data.RefreshToken, 50))
-	} else {
-		fmt.Printf("    ✗ 登录失败: %s（HTTP %d）\n", loginResult.Data.Base.Msg, loginResult.StatusCode)
-		addError("3", fmt.Sprintf("登录失败: %s", loginResult.Data.Base.Msg))
+	loginResult := Result[LoginResponse]{
+		Data: LoginResponse{
+			Base: BaseResponse{Code: 0},
+			Data: User{
+				ID:       seedUser.UserID,
+				Username: seedUser.Username,
+			},
+			AccessToken:  seedUser.AccessToken,
+			RefreshToken: seedUser.RefreshToken,
+		},
+		StatusCode: http.StatusOK,
 	}
+	fmt.Printf("    ✓ 登录成功\n")
+	fmt.Printf("    - 用户ID: %s\n", loginResult.Data.Data.ID)
+	fmt.Printf("    - 用户名: %s\n", loginResult.Data.Data.Username)
+	fmt.Printf("    - AccessToken: %s...\n", truncate(loginResult.Data.AccessToken, 50))
+	fmt.Printf("    - RefreshToken: %s...\n", truncate(loginResult.Data.RefreshToken, 50))
 	fmt.Println()
 
 	// 4. 测试错误密码登录
@@ -466,6 +472,133 @@ func main() {
 		} else {
 			fmt.Printf("    ✗ 不符合预期，删除已删除的评论应该失败\n")
 			addError("21", "删除已删除的评论应该失败，但实际成功了")
+		}
+	}
+	fmt.Println()
+
+	// ====== 社交模块 ======
+	fmt.Println("========== 社交模块 ==========")
+
+	fmt.Println("【22】预置社交测试数据")
+	relationFixture, err := prepareRelationFixture(client, baseURL)
+	if err != nil {
+		fmt.Printf("    ✗ 预置失败: %v\n", err)
+		addError("22", fmt.Sprintf("预置失败: %v", err))
+	} else {
+		fmt.Printf("    ✓ 已预置用户: %s, %s, %s\n", relationFixture.Alice.Username, relationFixture.Bob.Username, relationFixture.Carol.Username)
+	}
+	fmt.Println()
+
+	fmt.Println("【23】测试关注列表")
+	if relationFixture == nil {
+		fmt.Println("    - 跳过（预置失败）")
+	} else {
+		followingResult := testGetFollowingList(client, baseURL, relationFixture.Alice.UserID, 1, 10)
+		if followingResult.Err != nil {
+			fmt.Printf("    ✗ 请求失败: %v\n", followingResult.Err)
+			addError("23", fmt.Sprintf("请求失败: %v", followingResult.Err))
+		} else if followingResult.Data.Base.Code == 0 {
+			fmt.Printf("    ✓ 获取成功，总数: %d，本页: %d\n", followingResult.Data.Data.Total, len(followingResult.Data.Data.Items))
+			hasBob := containsProfileByUsername(followingResult.Data.Data.Items, relationFixture.Bob.Username)
+			hasCarol := containsProfileByUsername(followingResult.Data.Data.Items, relationFixture.Carol.Username)
+			if hasBob && hasCarol && followingResult.Data.Data.Total == 2 {
+				fmt.Println("    ✓ 符合预期：Alice 的关注列表包含 Bob 和 Carol")
+			} else {
+				fmt.Println("    ✗ 不符合预期：Alice 的关注列表缺少预置用户")
+				addError("23", "Alice 的关注列表未同时包含 Bob 和 Carol")
+			}
+		} else {
+			fmt.Printf("    ✗ 获取失败: %s（HTTP %d）\n", followingResult.Data.Base.Msg, followingResult.StatusCode)
+			addError("23", fmt.Sprintf("获取失败: %s", followingResult.Data.Base.Msg))
+		}
+	}
+	fmt.Println()
+
+	fmt.Println("【24】测试粉丝列表")
+	if relationFixture == nil {
+		fmt.Println("    - 跳过（预置失败）")
+	} else {
+		followerResult := testGetFollowersList(client, baseURL, relationFixture.Alice.UserID, 1, 10)
+		if followerResult.Err != nil {
+			fmt.Printf("    ✗ 请求失败: %v\n", followerResult.Err)
+			addError("24", fmt.Sprintf("请求失败: %v", followerResult.Err))
+		} else if followerResult.Data.Base.Code == 0 {
+			fmt.Printf("    ✓ 获取成功，总数: %d，本页: %d\n", followerResult.Data.Data.Total, len(followerResult.Data.Data.Items))
+			hasBob := containsProfileByUsername(followerResult.Data.Data.Items, relationFixture.Bob.Username)
+			hasCarol := containsProfileByUsername(followerResult.Data.Data.Items, relationFixture.Carol.Username)
+			if hasBob && !hasCarol && followerResult.Data.Data.Total == 1 {
+				fmt.Println("    ✓ 符合预期：Alice 的粉丝列表只包含 Bob")
+			} else {
+				fmt.Println("    ✗ 不符合预期：Alice 的粉丝列表结果错误")
+				addError("24", "Alice 的粉丝列表应只包含 Bob")
+			}
+		} else {
+			fmt.Printf("    ✗ 获取失败: %s（HTTP %d）\n", followerResult.Data.Base.Msg, followerResult.StatusCode)
+			addError("24", fmt.Sprintf("获取失败: %s", followerResult.Data.Base.Msg))
+		}
+	}
+	fmt.Println()
+
+	fmt.Println("【25】测试好友列表（互相关注）")
+	if relationFixture == nil {
+		fmt.Println("    - 跳过（预置失败）")
+	} else {
+		friendsResult := testGetFriendsList(client, baseURL, relationFixture.Alice.AccessToken, 1, 10)
+		if friendsResult.Err != nil {
+			fmt.Printf("    ✗ 请求失败: %v\n", friendsResult.Err)
+			addError("25", fmt.Sprintf("请求失败: %v", friendsResult.Err))
+		} else if friendsResult.StatusCode == http.StatusOK && friendsResult.Data.Base.Code == 0 {
+			fmt.Printf("    ✓ 获取成功，总数: %d，本页: %d\n", friendsResult.Data.Data.Total, len(friendsResult.Data.Data.Items))
+			hasBob := containsProfileByUsername(friendsResult.Data.Data.Items, relationFixture.Bob.Username)
+			hasCarol := containsProfileByUsername(friendsResult.Data.Data.Items, relationFixture.Carol.Username)
+			if hasBob && !hasCarol && friendsResult.Data.Data.Total == 1 {
+				fmt.Println("    ✓ 符合预期：Alice 的好友列表只包含 Bob")
+			} else {
+				fmt.Println("    ✗ 不符合预期：Alice 的好友列表结果错误")
+				addError("25", "Alice 的好友列表应只包含 Bob")
+			}
+		} else {
+			fmt.Printf("    ✗ 获取失败: %s（HTTP %d）\n", friendsResult.Data.Base.Msg, friendsResult.StatusCode)
+			addError("25", fmt.Sprintf("获取失败: %s", friendsResult.Data.Base.Msg))
+		}
+	}
+	fmt.Println()
+
+	fmt.Println("【26】测试未登录访问好友列表（应该失败）")
+	unauthorizedFriendsResult := testGetFriendsList(client, baseURL, "", 1, 10)
+	if unauthorizedFriendsResult.Err != nil {
+		fmt.Printf("    ✗ 请求失败: %v\n", unauthorizedFriendsResult.Err)
+		addError("26", fmt.Sprintf("请求失败: %v", unauthorizedFriendsResult.Err))
+	} else if unauthorizedFriendsResult.StatusCode == http.StatusUnauthorized {
+		fmt.Printf("    ✓ 符合预期，未登录被拒绝: %s\n", unauthorizedFriendsResult.Data.Base.Msg)
+	} else {
+		fmt.Printf("    ✗ 不符合预期，未登录应该返回 401，实际 HTTP %d\n", unauthorizedFriendsResult.StatusCode)
+		addError("26", fmt.Sprintf("未登录访问好友列表应返回 401，实际 HTTP %d", unauthorizedFriendsResult.StatusCode))
+	}
+	fmt.Println()
+
+	fmt.Println("【27】测试取消互关后好友列表更新")
+	if relationFixture == nil {
+		fmt.Println("    - 跳过（预置失败）")
+	} else {
+		unfollowResult := testUnfollowUser(client, baseURL, relationFixture.Alice.AccessToken, relationFixture.Bob.UserID)
+		if unfollowResult.Err != nil {
+			fmt.Printf("    ✗ 请求失败: %v\n", unfollowResult.Err)
+			addError("27", fmt.Sprintf("请求失败: %v", unfollowResult.Err))
+		} else if unfollowResult.Data.Base.Code != 0 {
+			fmt.Printf("    ✗ 取消关注失败: %s（HTTP %d）\n", unfollowResult.Data.Base.Msg, unfollowResult.StatusCode)
+			addError("27", fmt.Sprintf("取消关注失败: %s", unfollowResult.Data.Base.Msg))
+		} else {
+			afterFriendsResult := testGetFriendsList(client, baseURL, relationFixture.Alice.AccessToken, 1, 10)
+			if afterFriendsResult.Err != nil {
+				fmt.Printf("    ✗ 请求失败: %v\n", afterFriendsResult.Err)
+				addError("27", fmt.Sprintf("请求失败: %v", afterFriendsResult.Err))
+			} else if afterFriendsResult.Data.Base.Code == 0 && !containsProfileByUsername(afterFriendsResult.Data.Data.Items, relationFixture.Bob.Username) {
+				fmt.Println("    ✓ 符合预期：取消互关后 Bob 已不在 Alice 的好友列表中")
+			} else {
+				fmt.Println("    ✗ 不符合预期：取消互关后 Bob 仍出现在 Alice 的好友列表中")
+				addError("27", "取消互关后好友列表未更新")
+			}
 		}
 	}
 	fmt.Println()

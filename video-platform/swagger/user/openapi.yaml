@@ -3,20 +3,20 @@
 
 openapi: 3.0.3
 info:
-    title: UserService API
+    title: UserHandler API
     version: 3.0.3
 paths:
     /api/v1/user/avatar:
         post:
             tags:
-                - UserService
-            operationId: UserService_UploadAvatar
+                - UserHandler
+            operationId: UserHandler_UploadAvatar
             responses: {}
     /api/v1/user/info:
         get:
             tags:
-                - UserService
-            operationId: UserService_GetUserInfo
+                - UserHandler
+            operationId: UserHandler_GetUserInfo
             parameters:
                 - name: user_id
                   in: query
@@ -26,8 +26,8 @@ paths:
     /api/v1/user/login:
         post:
             tags:
-                - UserService
-            operationId: UserService_Login
+                - UserHandler
+            operationId: UserHandler_Login
             requestBody:
                 content:
                     application/json:
@@ -37,8 +37,8 @@ paths:
     /api/v1/user/refresh:
         post:
             tags:
-                - UserService
-            operationId: UserService_RefreshToken
+                - UserHandler
+            operationId: UserHandler_RefreshToken
             requestBody:
                 description: 'RefreshTokenRequest: 使用 refresh_token 换取新的 access_token'
                 content:
@@ -49,8 +49,8 @@ paths:
     /api/v1/user/register:
         post:
             tags:
-                - UserService
-            operationId: UserService_Register
+                - UserHandler
+            operationId: UserHandler_Register
             requestBody:
                 content:
                     application/json:
@@ -79,4 +79,4 @@ components:
                 password:
                     type: string
 tags:
-    - name: UserService
+    - name: UserHandler
