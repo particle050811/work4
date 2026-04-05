@@ -16,9 +16,6 @@ type Store struct {
 	redis *redis.Client
 }
 
-// 确保 Store 实现 StoreLike 接口
-var _ StoreLike = (*Store)(nil)
-
 var defaultStore *Store
 
 // Init 初始化 Store（在 main.go 中调用）
@@ -40,7 +37,7 @@ func (s *Store) DB() *gorm.DB {
 	return s.db
 }
 
-// Redis 获取 Redis 客户端（实现 CacheProvider）
+// Redis 获取 Redis 客户端
 func (s *Store) Redis() RedisClient {
 	return s.redis
 }
@@ -56,20 +53,6 @@ func (s *Store) WithTx(fn func(txStore *Store) error) error {
 		txStore := &Store{db: tx, redis: s.redis}
 		return fn(txStore)
 	})
-}
-
-// Close 关闭所有连接
-func (s *Store) Close() error {
-	// 关闭 MySQL
-	sqlDB, err := s.db.DB()
-	if err == nil {
-		sqlDB.Close()
-	}
-	// 关闭 Redis
-	if s.redis != nil {
-		s.redis.Close()
-	}
-	return nil
 }
 
 // autoMigrate 自动迁移所有模型

@@ -6,6 +6,7 @@
 
 ```text
 video-platform/
+├── .env.example               # 环境变量示例
 ├── main.go                    # 服务入口
 ├── router.go                  # 自定义路由扩展
 ├── router_gen.go              # Hertz 生成路由入口
@@ -36,9 +37,8 @@ video-platform/
 │   ├── video/
 │   ├── interaction/
 │   └── relation/
-├── docs/                      # 文档补充目录
-├── conf/                      # 配置相关文件
 ├── script/                    # 启动/初始化脚本
+├── build.sh                   # 本地构建脚本
 ├── Dockerfile
 └── README.md
 ```
@@ -89,7 +89,10 @@ go run .
 默认访问地址：
 
 - 服务：`http://localhost:8888`
-- Swagger：`http://localhost:8888/swagger/index.html`
+- Swagger（用户模块）：`http://localhost:8888/swagger/user/index.html`
+- Swagger（视频模块）：`http://localhost:8888/swagger/video/index.html`
+- Swagger（互动模块）：`http://localhost:8888/swagger/interaction/index.html`
+- Swagger（社交模块）：`http://localhost:8888/swagger/relation/index.html`
 
 ## Docker 交付
 
@@ -121,6 +124,8 @@ docker run -d \
 该命令为本地测试示例，使用宿主机网络，适用于本机 MySQL 和 Redis 运行在 `127.0.0.1` 的场景。镜像名使用当前仓库工作流推送到 Docker Hub 的 `particle050811/fanone-video:latest`。
 
 本地测试时挂载 `storage` 目录，便于直接查看上传文件；实际服务器部署如果不需要保留宿主机侧文件，可删除 `-v /home/particle/2025-2/west2onlie_GoWeb/work4/video-platform/storage:/app/storage` 这一行，直接运行容器。
+
+如果使用本地刚构建的镜像，需将命令最后一行的镜像名改为 `fanone-video:latest`。
 
 ### 3. 验证服务
 

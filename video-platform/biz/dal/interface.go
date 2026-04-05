@@ -29,15 +29,3 @@ type RedisClient interface {
 	ZRem(ctx context.Context, key string, members ...interface{}) *redis.IntCmd
 	ZScore(ctx context.Context, key string, member string) *redis.FloatCmd
 }
-
-// CacheProvider 提供缓存访问能力
-type CacheProvider interface {
-	Redis() RedisClient
-	HasRedis() bool
-}
-
-// StoreLike 聚合接口，DAO 可依赖此接口
-type StoreLike interface {
-	DBProvider
-	CacheProvider
-}

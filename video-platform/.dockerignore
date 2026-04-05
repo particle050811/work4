@@ -6,5 +6,4 @@ fanone-video
 video-platform
 output/
 *.log
-storage/avatars/*
-storage/videos/*
+storage
